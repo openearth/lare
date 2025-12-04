@@ -1,0 +1,6 @@
+﻿hazard,lowland,midland,upland
+Flood,1.10,1.00,0.80
+Erosion,0.90,1.00,1.20
+Fire,0.95,1.05,1.10
+Drought,0.90,1.05,1.10
+Heat,1.05,1.05,1.00

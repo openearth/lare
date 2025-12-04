@@ -1,0 +1,4 @@
+﻿min;max;score;descripton
+0;300;1;lowland
+300;800;2;midland
+800;9999;3;upland

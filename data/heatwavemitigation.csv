@@ -1,0 +1,13 @@
+﻿clc;rasdata;score;description
+23;311;0.90;Broad-leaved forest - canopy cooling
+24;312;0.80;Coniferous forest
+25;313;0.85;Mixed forest
+10;141;0.60;Green urban areas - shading/ET
+11;142;0.50;Sports/leisure
+2;112;0.30;Discontinuous urban fabric - partial greening
+21;243;0.40;Mosaic vegetation
+26;321;0.65;Natural grasslands
+29;324;0.50;Transitional woodland/shrub
+27;322;0.40;Heathland
+41;512;0.80;Lakes - evap cooling
+35;411;0.70;Inland marshes - ET cooling

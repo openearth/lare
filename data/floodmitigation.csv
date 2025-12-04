@@ -1,0 +1,16 @@
+clc;rasdata;score;description
+35;411;0.95;Inland marshes - storage, roughness, attenuation
+36;412;0.95;Peatbogs - high retention
+37;421;0.75;Salt marshes
+23;311;0.75;Broad-leaved forest - canopy, infiltration
+24;312;0.60;Coniferous forest
+14;213;0.40;Rice fields - temporary water retention
+22;244;0.60;Agroforestry - perennial cover increases infiltration
+26;321;0.60;Natural grasslands - surface roughness
+28;323;0.75;Sclerophyllous vegetation - structure, soils
+29;324;0.40;Transitional woodland/shrub - mixed, variable
+44;523;0.90;Estuaries - storage/expansion areas
+42;521;0.75;Coastal lagoons
+40;511;0.40;Water courses - conveyance, limited attenuation on-channel
+10;141;0.20;Green urban areas - local infiltration/cooling
+2;112;0.10;Discontinuous urban fabric - some permeable fraction

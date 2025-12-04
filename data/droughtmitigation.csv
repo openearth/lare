@@ -1,0 +1,10 @@
+﻿clc;rasdata;score;descripton
+35;411;0.95;Marshes - buffering water availability
+36;412;0.95;Peat bogs - storage
+23;311;0.80;Broad-leaved forest - rooting depth/ET shading
+24;312;0.70;Coniferous forest
+26;321;0.60;Natural grasslands
+19;241;0.75;Agroforestry / perennial systems
+12;211;0.20;Arable land - exposure/high demand
+11;142;0.05;Sports/leisure - manicured turf, water demand
+40;521;0.70;Coastal lagoons - local buffering

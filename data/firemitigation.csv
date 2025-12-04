@@ -1,0 +1,11 @@
+﻿clc;rasdata;score;description
+18;231;0.40;Pastures - lower fuel continuity vs dense forest
+19;241;0.30;Annual crops - seasonal moisture
+21;243;0.40;Mosaic vegetation - breaks continuity
+23;311;0.20;Broad-leaved forest - can carry fire under drought
+27;322;0.50;Heathland - mixed - can reduce spread with mosaics
+29;324;0.30;Transitional woodland/shrub
+35;411;0.80;Inland marshes - high moisture
+41;512;0.90;Lakes - strong barrier
+10;141;0.30;Green urban areas - breaks, irrigated
+2;112;0.20;Discontinuous urban - mixed materials

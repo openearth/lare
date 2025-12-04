@@ -1,0 +1,14 @@
+name: pywps-desirmed
+channels:
+  - conda-forge
+dependencies:
+  - python=3
+  - pywps
+  - flask
+  - rasterio
+  - pandas
+  - numpy
+  - ipykernel
+  - geopandas
+  - psycopg2-binary
+  - sqlalchemy
