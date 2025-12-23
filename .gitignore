@@ -3,9 +3,16 @@ outputs/*
 static/*
 logs/*
 configuration*.txt
+app.yml
 tmp/*
 *.tif
 *.tif.*
+utils/
+tmp/
+templates/
+wps_ri2de*.py
+ri2de_.json
+*.tif
 
 # vim, mac os
 *.sw*

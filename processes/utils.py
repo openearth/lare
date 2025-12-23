@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2020, 2025 Deltares
-#       Gerrit Hendriksen, Ioanna Micha
-#
-#       gerrit.hendriksen@deltares.nl, ioanna.micha@deltares.nl
+#   Copyright (C) 2018-2019 Deltares
+#       Joan Sala
+#       joan.salacalero@deltares.nl
+#       Gerrit Hendriksen
+#       gerrit.hendriksen@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -26,88 +27,78 @@
 # Sign up to recieve regular updates of this function, and to contribute
 # your own tools.
 
+# $HeadURL: https://svn.oss.deltares.nl/repos/openearthtools/trunk/python/applications/wps/ri2de/processes/utils.py $
+# $Keywords: $
+
+import time
 import os
+import pathlib
+import json
 import configparser
-from pathlib import Path
-import pandas as pd
-import tempfile
-import shutil
-import logging
+import yaml
 
-LOGGER = logging.getLogger("PYWPS")
+# Get a unique temporary file
+def tempfile(tempdir, typen, extension):
+    fname = typen + str(time.time()).replace('.','')
+    return os.path.join(tempdir, fname+extension)
 
-service_path = Path(__file__).resolve().parent
+# Read default configuration from file
+def read_config():
+	# Default config file (relative path, does not work on production, weird)
+	confpath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ri2de_configuration.txt')
+	if not os.path.exists(confpath):	
+		confpath = '/opt/pywps/processes/configuration.txt'
+	# Parse and load
+	cf = configparser.ConfigParser() 
+	cf.read(confpath)
+	return cf
 
-def read_config(file_name="configuration.txt") -> tuple:
-    """Reads the configuration file
-    Returns:
-        List with configuration
-    """
+# Read input [common parameters]
+def read_input(request):
+	layers_jsonstr = request.inputs["layers_setup"][0].data		
+	layer_info = json.loads(layers_jsonstr)
+	roads_id = request.inputs["roads_identifier"][0].data.strip()
+	return layers_jsonstr, layer_info, roads_id
 
-    cf_file = service_path / file_name
-    cf = configparser.RawConfigParser()
-    cf.read(cf_file)
-    # POSTGIS
-    host = cf.get("PostGIS", "host")
-    user = cf.get("PostGIS", "user")
-    psword = cf.get("PostGIS", "pass")
-    db = cf.get("PostGIS", "db")
-    port = cf.get("PostGIS", "port")
-    # GeoServer
-    ows_url = cf.get("GeoServer", "ows_url")
-    username = cf.get("GeoServer", "username")
-    password = cf.get("GeoServer", "password")
-    return (
-        host,
-        user,
-        psword,
-        db,
-        port,
-        ows_url,
-        username,
-        password,
-    )
+# Read input [common parameters]
+def read_input_segments(request):
+	buffer_dist = float(request.inputs["buffer_dist"][0].data)
+	segment_length = float(request.inputs["segment_length"][0].data)
+	return buffer_dist, segment_length
 
+# Write output
+def write_output(cf, wmslayer, defstyle='ri2de'):
+	res = dict()
+	res['baseUrl'] = cf.get('GeoServer', 'wms_url')
+	res['layerName'] = wmslayer
+	res['style'] = defstyle
+	return json.dumps(res)
+	
+# Read default configuration from file
+def read_setup():
+	# Default layers file (relative path, does not work on production, weird)
+	confpath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ri2de_layers.json')
+	if not os.path.exists(confpath):	
+		confpath = '/opt/pywps/processes/ri2de_layers.json'
+	return confpath
 
-def create_temp_dir(dir):
-    # Temporary folder setup
-    tmpdir = tempfile.mkdtemp(dir=dir)
-    return tmpdir
+# Read default susceptibilities configuration file
+def read_susceptibilities():
+	# Default layers file (relative path, does not work on production, weird)
+	confpath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ri2de_susceptibilities.json')
+	if not os.path.exists(confpath):	
+		confpath = '/opt/pywps/processes/ri2de_susceptibilities.json'
+	return confpath
 
-
-def delete_tmp_dir(dir):
-    try:
-        shutil.rmtree(dir)
-    except OSError as e:
-        LOGGER.info(f"Error: {dir} : {e.sterror}")
-
-
-# -----------------------------
-# 3. Load reclassification table
-# -----------------------------
-def load_reclass_table(csv_path, lusecol=None, reclasscol=None):
-    if not os.path.isfile(csv_path):
-        print(f'File {csv_path} not found')
-        return None
-    try:
-        df = pd.read_csv(csv_path, delimiter=';')
-    except Exception as e:
-        print(f'Failed to read reclassification CSV {csv_path}:', e)
-        return None
-    if lusecol not in df.columns or reclasscol not in df.columns:
-        print(f'Columns "{lusecol}" and/or "{reclasscol}" not found in {csv_path}')
-        return None
-    return dict(zip(df[lusecol], df[reclasscol]))
-
-
-# -----------------------------
-# 3. Load reclassification table 
-#    with classes, to remap continuos data
-# -----------------------------
-def load_reclass_table_continuasdata(csv_path,clmin='min',clmax='max',clscore='score'):
-    df = pd.read_csv(csv_path, sep=';')
-    # Ensure numeric types
-    df[clmin] = pd.to_numeric(df[clmin])
-    df[clmax] = pd.to_numeric(df[clmax])
-    df[clscore] = pd.to_numeric(df[clscore], downcast='integer')
-    return df
+def read_appyml(fn='app.yml'):
+	if not os.path.isfile(fn):
+		fn = os.path.join(os.path.dirname(os.path.abspath(__file__)),'app.yml')
+		if not os.path.isfile(fn):
+			print('no app.yml found')
+		else:
+			print(fn)
+			with open(fn, "r") as f:
+				return yaml.safe_load(f)
+	else:
+		with open(fn, "r") as f:
+			return yaml.safe_load(f)

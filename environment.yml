@@ -1,4 +1,4 @@
-name: pywps-desirmed
+name: lare
 channels:
   - conda-forge
 dependencies:
@@ -12,3 +12,8 @@ dependencies:
   - geopandas
   - psycopg2-binary
   - sqlalchemy
+  - owslib
+  - geojson
+  - shapely
+  - scipy
+  - geoserver-restconfig

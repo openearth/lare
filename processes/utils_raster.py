@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2020, 2025 Deltares
-#       Gerrit Hendriksen, Ioanna Micha
-#       gerrit.hendriksen@deltares.nl, ioanna.micha@deltares.nl
+#   Copyright (C) 2018 Deltares
+#       Joan Sala
+#       joan.salacalero@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -25,166 +25,470 @@
 # Sign up to recieve regular updates of this function, and to contribute
 # your own tools.
 
-import os
+# $HeadURL: https://svn.oss.deltares.nl/repos/openearthtools/trunk/python/applications/wps/ri2de/processes/utils_raster.py $
+# $Keywords: $
+
+import glob
 import numpy as np
 import rasterio
-from rasterio.mask import mask
 from rasterio.enums import Resampling
-from rasterio.warp import calculate_default_transform, reproject
-
-# -----------------------------
-# Utility: dtype & nodata helpers
-# -----------------------------
-def default_nodata(np_dtype):
-    if np.issubdtype(np_dtype, np.floating):
-        return np.nan
-    if np.issubdtype(np_dtype, np.signedinteger):
-        return np.iinfo(np_dtype).min
-    if np.issubdtype(np_dtype, np.unsignedinteger):
-        return np.iinfo(np_dtype).max
-    return None
+from scipy.ndimage import grey_dilation
 
 
-def normalize_dtype(dtype, fallback_np_dtype=None):
-    if dtype is None:
-        np_dtype = np.dtype(fallback_np_dtype) if fallback_np_dtype is not None else np.dtype('float32')
-    elif isinstance(dtype, np.dtype):
-        np_dtype = dtype
-    elif isinstance(dtype, str):
-        dt = dtype.lower()
-        if dt in ('int', 'int32'):
-            np_dtype = np.dtype('int32')
-        elif dt in ('int16', 'int64', 'uint8', 'uint16', 'uint32'):
-            np_dtype = np.dtype(dt)
-        elif dt in ('float', 'float32'):
-            np_dtype = np.dtype('float32')
-        elif dt in ('float64',):
-            np_dtype = np.dtype('float64')
-        else:
-            np_dtype = np.dtype(dt)
-    else:
-        np_dtype = np.dtype(dtype)
-    return np_dtype, np_dtype.name
+from processes.utils_wcs import *
+from processes.utils_vector import *
 
-def ensure_nodata_compatible(np_dtype, nodata_value):
-    if nodata_value is None:
-        return default_nodata(np_dtype)
-    if np.issubdtype(np_dtype, np.floating):
-        return np.nan if (isinstance(nodata_value, float) and np.isnan(nodata_value)) else float(nodata_value)
-    try:
-        iv = int(nodata_value)
-    except Exception:
-        return default_nodata(np_dtype)
-    info = np.iinfo(np_dtype)
-    return iv if info.min <= iv <= info.max else default_nodata(np_dtype)
+# from utils_wcs import *
+# from utils_vector import *
 
 
-# -----------------------------
-# 5. Reproject to EPSG:4326
-# -----------------------------
-def reproject_to_4326(array, meta, dtype='int32', nodata_out=None):
-    if array is None or meta is None:
-        print('Reprojection skipped: missing array or meta.')
-        return None, None
-    np_dtype, rio_dtype = normalize_dtype(dtype, fallback_np_dtype=array.dtype)
-    if nodata_out is None:
-        nodata_out = default_nodata(np_dtype)
-    dst_crs = "EPSG:4326"
-    src_crs = meta.get('crs')
-    src_transform = meta.get('transform')
-    src_width = meta.get('width')
-    src_height = meta.get('height')
-    if src_crs is None or src_transform is None:
-        print('Reprojection failed: incomplete metadata.')
-        return None, None
-    try:
-        left, bottom, right, top = rasterio.transform.array_bounds(src_height, src_width, src_transform)
-        dst_transform, dst_width, dst_height = calculate_default_transform(
-            src_crs, dst_crs, src_width, src_height, left, bottom, right, top
-        )
-    except Exception as e:
-        print('Reprojection not successful (transform calculation):', e)
-        return None, None
-    reprojected = np.empty((dst_height, dst_width), dtype=np_dtype)
-    try:
-        reproject(
-            source=array,
-            destination=reprojected,
-            src_transform=src_transform,
-            src_crs=src_crs,
-            dst_transform=dst_transform,
-            dst_crs=dst_crs,
-            resampling=Resampling.nearest,
-            src_nodata=nodata_out,
-            dst_nodata=nodata_out
-        )
-    except Exception as e:
-        print('Reprojection not successful (warp):', e)
-        return None, None
-    new_meta = meta.copy()
-    new_meta.update({
-        "crs": dst_crs,
-        "transform": dst_transform,
-        "width": dst_width,
-        "height": dst_height,
-        "dtype": rio_dtype,
+#from scipy.misc import imresize  # image resampling
+
+#from osgeo import osr
+#from osgeo import gdalconst
+#import cv2  # dilate band
+
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+# Cut a raster layer
+def cut_wcs(xst, yst, xend, yend, layername, owsurl, outfname, crs=4326, all_box=False):
+
+    logging.info("----!!! layername: {}, owsurl: {}".format(layername, owsurl))
+    linestr = "LINESTRING ({} {}, {} {})".format(xst, yst, xend, yend)
+    l = LS(linestr, crs, owsurl, layername)
+    l.line()
+    l.getraster(outfname, all_box=all_box)
+    l = None
+    logging.info("Writing: {}".format(outfname))
+
+
+# Write array to grid file / rewritten to rasterio Dec2025
+def write_array_grid(
+    raster_grid_path: str,
+    raster_name: str,
+    array: np.ndarray,
+    nodataval: float | int = -9999.0,
+    output_dtype: str | np.dtype | None = None,
+    creation_options: dict | None = None,
+) -> str:
+    """
+    Write a NumPy array to a GeoTIFF using georeferencing (CRS + transform + size)
+    taken from an existing 'raster_grid_path'. No osgeo.* imports required.
+
+    Parameters
+    ----------
+    raster_grid_path : str
+        Template raster to copy width/height, transform, and CRS from.
+    raster_name : str
+        Output GeoTIFF path.
+    array : np.ndarray
+        2D array (rows, cols). Must match the template's height/width.
+    nodataval : float | int, default -9999.0
+        NoData value for the output band.
+    output_dtype : str | np.dtype | None
+        Data type for the output file (e.g., 'uint8', 'int16', 'float32').
+        If None, uses array.dtype.
+    creation_options : dict | None
+        Extra profile options (e.g., {"compress":"lzw","tiled":True,"blockxsize":256,"blockysize":256}).
+
+    Returns
+    -------
+    str
+        raster_name (the output path)
+    """
+    if array.ndim != 2:
+        raise ValueError("Input 'array' must be a 2D NumPy array (rows, cols).")
+
+    # Open template to fetch metadata
+    with rasterio.open(raster_grid_path) as src:
+        height, width = src.height, src.width
+        if array.shape != (height, width):
+            raise ValueError(
+                f"Array shape {array.shape} does not match template raster size ({height}, {width})."
+            )
+
+        transform = src.transform
+        crs = src.crs
+
+    # Build output profile
+    dtype = str(output_dtype or array.dtype)
+    profile = {
+        "driver": "GTiff",
+        "height": height,
+        "width": width,
         "count": 1,
-        "nodata": nodata_out
-    })
-    return reprojected, new_meta
+        "dtype": dtype,
+        "crs": crs,
+        "transform": transform,
+        "nodata": nodataval,
+        # Good defaults similar to your original options
+        "compress": "lzw",
+        "tiled": True,
+    }
 
-# -----------------------------
-# 2. Clip raster with polygon
-# -----------------------------
-def clip_raster(raster_path, polygon_gdf, nodata=None):
-    if polygon_gdf is None:
-        print('No polygon provided for clipping.')
-        return None, None
-    if not os.path.isfile(raster_path):
-        print(f'File {raster_path} not found')
-        return None, None
-    try:
-        with rasterio.open(raster_path) as src:
-            polygon_geom = [polygon_gdf.geometry.unary_union]
-            src_dtype = np.dtype(src.dtypes[0])
-            original_nodata = src.nodata if src.nodata is not None else default_nodata(src_dtype)
-            nodata_fill = original_nodata if nodata is None else nodata
-            out_image, out_transform = mask(src, polygon_geom, crop=True, filled=True, nodata=nodata_fill)
-            out_meta = src.meta.copy()
-            out_meta.update({
-                "height": out_image.shape[1],
-                "width": out_image.shape[2],
-                "transform": out_transform,
-                "count": 1,
-                "nodata": original_nodata
-            })
-    except Exception as e:
-        print('Clipping raster failed:', e)
-        return None, None
-    return out_image[0], out_meta
+    # Allow overrides / extras
+    if creation_options:
+        profile.update(creation_options)
 
-# -----------------------------
-# 6. Save raster
-# -----------------------------
-def save_raster(array, meta, output_path, dtype=None, cog=False, nodata_out=None):
-    if array is None or meta is None:
-        print('Save skipped: missing array or meta.')
-        return
-    np_dtype, rio_dtype = normalize_dtype(dtype, fallback_np_dtype=array.dtype)
-    if nodata_out is None:
-        nodata_out = ensure_nodata_compatible(np_dtype, meta.get('nodata'))
-    out_meta = meta.copy()
-    out_meta.update({"dtype": rio_dtype, "count": 1, "nodata": nodata_out})
-    if cog:
-        out_meta.update({"driver": "COG", "compress": "deflate"})
-    else:
-        if "driver" not in out_meta:
-            out_meta.update({"driver": "GTiff"})
-    arr = array.astype(np_dtype, copy=False)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    try:
-        with rasterio.open(output_path, "w", **out_meta) as dst:
-            dst.write(arr, 1)
-        print(f'Raster saved to {output_path} (dtype={rio_dtype}, nodata={nodata_out}, driver={out_meta["driver"]})')
-    except Exception as e:
-        print(f'Failed to save raster to {output_path}:', e)
+    # Write GeoTIFF
+    with rasterio.open(raster_name, "w", **profile) as dst:
+        # If the array dtype differs from profile['dtype'], rasterio will cast on write.
+        dst.write(array, indexes=1)
+
+    return raster_name
+
+
+# Get finest resolution
+def get_finest_resolution(calc):
+    # Resample and calculate
+    xsize = -1
+    ysize = -1
+    rst = ""
+    for fname, weight in calc.items():
+        raster = gdal.Open(fname)
+        xs = raster.RasterXSize
+        ys = raster.RasterYSize
+        if (xs * ys) > (xsize * ysize):
+            xsize = xs
+            ysize = ys
+            rst = fname
+    return xsize, ysize, rst
+
+
+# Calculate vulnerability
+def vulnerability_calc(calc, outfname):
+    # Get finest resolution
+    N = 0.0
+    xsize, ysize, rastname = get_finest_resolution(calc)
+    print("Final resolution: [{} x {}]".format(xsize, ysize))
+    print("Taken from: {}".format(rastname))
+
+    # Compute total weight
+    total_weight = 0.0
+    for fname, weight in calc.items():
+        total_weight += float(weight)
+
+    # Resample and calculate
+    for fname, weight in calc.items():
+        # Read band as float
+        raster = gdal.Open(fname)
+        band = raster.GetRasterBand(1)
+        imgdata = band.ReadAsArray().astype(float)
+        rel_weight = float(float(weight) / total_weight)
+
+        # Interpolate / Resize / Normalize
+        resdata = rel_weight * (
+            imresize(imgdata, (ysize, xsize)) / 255.0
+        )  # 0..1	* relative weight
+
+        # Init / Accumulate
+        if N == 0:
+            z = resdata
+        else:
+            z = z + resdata
+
+        # Inc
+        N += 1
+
+    # Average and write [to 123]
+    z = z * 3.0  # 123 conversion (green-yellow-red)
+    print("Final resolution: [{} x {}]".format(z.shape[1], z.shape[0]))
+    write_array_grid(rastname, outfname, z, nodataval=0, output_type=gdal.GDT_Float32)
+
+
+# Calculate slope
+def dem_to_slope(dem, outfname):
+    # Generate slope map [from degrees / wgs84]
+    os.system("gdaldem slope -s 111120 -compute_edges {} {}".format(dem, outfname))
+    print("Writing: {}".format(outfname))
+
+
+# Classify a integer map in classes 123
+def classify_land_cover(arr, class1, class2, class3):
+    # Classification
+    z = np.empty(arr.shape)  # init as zeroes
+    z[np.where(np.isin(arr, class1))] = 1
+    z[np.where(np.isin(arr, class2))] = 2
+    z[np.where(np.isin(arr, class3))] = 3
+    return z
+
+
+# Classify raster [1,2,3] + 0 as nodata
+def classify_raster(inputRaster, workdir, classes, typeLayer):
+    # Read
+    raster = gdal.Open(inputRaster, gdal.GA_ReadOnly)
+    band = raster.GetRasterBand(1)
+    array = band.ReadAsArray()
+
+    # Classify
+    if typeLayer == "123":
+        array = classify_array_123(array, classes)
+    elif typeLayer == "globcover":
+        class1 = [20, 30, 50, 70, 110, 120, 170, 220]
+        class2 = [14, 40, 60, 90, 100, 130, 140, 160, 180]
+        class3 = [11, 150, 190, 200, 210, 230]
+        array = classify_land_cover(array, class1, class2, class3)
+    elif typeLayer == "corine":
+        class1 = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
+        class2 = [15, 16, 17, 18, 19, 20, 21, 22]
+        class3 = [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            48,
+            49,
+            50,
+        ]
+        array = classify_land_cover(array, class1, class2, class3)
+    elif typeLayer == "culverts":
+        array = classify_array_123(array, [0, 0.99, 1.99])
+    elif typeLayer == "waterJRC":
+        array = classifyDistanceByDilation(inputRaster, classes, 25)  # JRC resolution
+
+    # Write band
+    outputRaster = os.path.join(workdir, "classes.tif")
+    write_array_grid(inputRaster, outputRaster, array, nodataval=-9999)
+    print("Classify: {}".format(outputRaster))
+
+    return outputRaster
+
+
+# Classify array [1,2,3]
+def classify_array_123(arr, interval):
+    interval = np.asarray(interval)
+    z = np.empty(arr.shape)  # init as zeroes
+    z[(arr > interval[0])] = 1
+    z[(arr > interval[1])] = 2
+    z[(arr > interval[2])] = 3
+    return z
+
+
+# Burn a binary mask from a shapefile [return tif or band]
+def burn_mask(height, width, shpfname, tifname, read=False):
+    # Rasterize 1/0
+    print("Writing: {}".format(tifname))
+    cmd = """gdal_rasterize -co "COMPRESS=LZW" -co "TILED=YES" -burn 1 -ts {w} {h} {shp} {tif}""".format(
+        h=height, w=width, shp=shpfname, tif=tifname
+    )
+    os.system(cmd)
+
+    # Sometimes we need the array, that's life
+    if read:
+        raster = gdal.Open(tifname, gdal.GA_ReadOnly)
+        band = raster.GetRasterBand(1)
+        return band.ReadAsArray()
+
+
+# Rasterize a vector file [1/0]
+def rasterize(rasterin, vectorin, rasterout, read=False):
+    # Read geometry from given raster
+    data = gdal.Open(rasterin, gdalconst.GA_ReadOnly)
+    geo_transform = data.GetGeoTransform()
+    x_min = geo_transform[0]
+    y_max = geo_transform[3]
+    x_max = x_min + geo_transform[1] * data.RasterXSize
+    y_min = y_max + geo_transform[5] * data.RasterYSize
+    x_res = data.RasterXSize
+    y_res = data.RasterYSize
+    pixel_width = geo_transform[1]
+
+    # Read features and rasterize to output
+    mb_v = ogr.Open(vectorin)
+    mb_l = mb_v.GetLayer()
+    target_ds = gdal.GetDriverByName("GTiff").Create(
+        rasterout, x_res, y_res, 1, gdal.GDT_Byte, ["COMPRESS=LZW", "TILED=YES"]
+    )
+    target_ds.SetGeoTransform(geo_transform)
+    band = target_ds.GetRasterBand(1)
+    NoData_value = -999999
+    band.SetNoDataValue(NoData_value)
+    band.FlushCache()
+
+    print("Writing: {}".format(rasterout))
+    gdal.RasterizeLayer(target_ds, [1], mb_l, burn_values=[1])
+
+    # Return band if necessary
+    if read:
+        return band.ReadAsArray()
+    # Free
+    target_ds = None
+
+
+# Apply a road mask [buffer around roads] to a given raster
+def apply_road_mask(cf, rasterfname, shpfname, workdir):
+
+    # Read band
+    print("Masking: {}".format(rasterfname))
+    raster = gdal.Open(rasterfname, gdal.GA_Update)
+    band = raster.GetRasterBand(1)
+    array = band.ReadAsArray()
+    shape = array.shape
+
+    # Burn mask
+    burn_mask(shape[0], shape[1], shpfname, os.path.join(workdir, "roads.tif"))
+
+    # Apply mask and update raster
+    rasterm = gdal.Open(os.path.join(workdir, "roads.tif"))
+    bandm = rasterm.GetRasterBand(1)
+    mask = bandm.ReadAsArray().astype(float)
+    array = array * mask
+    band.SetNoDataValue(0)
+    band.WriteArray(array)
+
+
+# Dilate function for
+# Ex: JRC raster is 25m resolution approx
+# def dilate_band(array, meters, resolution=25):
+#     # Establish how many pixels we will dilate
+#     degs = int(meters / resolution)
+
+#     # Dilate band
+#     kernel = np.ones((degs, degs), np.uint8)
+#     res = cv2.dilate(array, kernel, iterations=5)
+#     return res
+
+
+
+def dilate_band(array: np.ndarray, meters: float, resolution: float = 25.0, iterations: int = 5) -> np.ndarray:
+    """
+    Grayscale dilation equivalent to cv2.dilate(array, kernel, iterations).
+    - array: 2D (or 3D where each band is dilated independently)
+    - meters: desired dilation distance in meters
+    - resolution: meters per pixel
+    - iterations: number of repeated dilations (cv2.dilate's iterations)
+    """
+    # Number of pixels in the square structuring element
+    degs = int(meters / resolution)
+    degs = max(degs, 1)  # avoid 0-sized kernel
+
+    # Build square structuring element of ones (same as np.ones((degs,degs), np.uint8) in OpenCV)
+    structure = np.ones((degs, degs), dtype=bool)
+
+    # Apply dilation; for multiple iterations, call repeatedly
+    result = array
+    for _ in range(iterations):
+        result = grey_dilation(result, footprint=structure)  # max filter over footprint
+
+    # Preserve dtype similar to OpenCV (returns same dtype as input)
+    if result.dtype != array.dtype:
+        result = result.astype(array.dtype)
+
+    return result
+
+
+
+
+# Classify raster by dilation image techniques
+def classifyDistanceByDilation(inputRaster, classes, resolution):
+    # Read band
+    raster = gdal.Open(inputRaster, gdal.GA_ReadOnly)
+    band = raster.GetRasterBand(1)
+    array = band.ReadAsArray()
+
+    # Dilate bands [red and yellow]
+    bred = dilate_band(array, classes[1], resolution)
+    byellow = dilate_band(array, classes[2], resolution)
+    res = bred + byellow + 1  # classify 1,2,3
+
+    return res
+
+
+# Combine two shapefiles into a raster 123
+def combine_culverts(
+    workdir, roadsShp, culvertsShpRed, culvertsShpYell, height, width, outputRaster
+):
+    # Burn roads
+    roadsTif = os.path.join(workdir, "roads.tif")
+    broads = burn_mask(height, width, roadsShp, roadsTif, read=True)
+
+    # Get bands for the two distances
+    culvertsTifRed = culvertsShpRed.replace(".shp", ".tif")
+    culvertsTifYell = culvertsShpYell.replace(".shp", ".tif")
+    bred = rasterize(roadsTif, culvertsShpRed, culvertsTifRed, read=True)
+    byellow = rasterize(roadsTif, culvertsShpYell, culvertsTifYell, read=True)
+
+    # classify 1,2,3 = Green is safe and apply mask
+    res = (bred + byellow + broads) * broads
+
+    # Write output
+    print("Writing: {}".format(outputRaster))
+    write_array_grid(roadsTif, outputRaster, res, nodataval=0)  # transparent
+
+
+def mean_soil_layers(workdir, prefix):
+    res = []
+    # All soil layers
+    for rn in glob.glob(os.path.join(workdir, "{}*tif".format(prefix))):
+        raster = gdal.Open(rn, gdal.GA_ReadOnly)
+        band = raster.GetRasterBand(1)
+        res.append(band.ReadAsArray().tolist())
+    # Mean
+    return np.mean(np.array(res), axis=0), rn
+
+
+# Combine 7 layers of 3 different soil information maps into a vulnerability map
+def combine_soil_layers(workdir, soilfname):
+    # Calculate layers mean
+    clay, clf = mean_soil_layers(workdir, "CLYPPT")
+    silt, slf = mean_soil_layers(workdir, "SLTPPT")
+    sand, snf = mean_soil_layers(workdir, "SNDPPT")
+
+    # Get maximums [of the means]
+    truth = np.maximum(np.maximum(clay, silt), sand)
+
+    # Create an array with 1 for sand, 2 for silt, 3 clay
+    res = np.where(truth == clay, 3, truth)
+    res = np.where(truth == silt, 2, res)
+    res = np.where(truth == sand, 1, res)
+    res = np.where(truth == 255, 0, res)
+
+    return write_array_grid(clf, soilfname, res, nodataval=0)
+
+
+# deprecated stuff
+# def write_array_grid(
+#     RasterGrid, RasterName, array, nodataval=-9999.0, output_type=gdal.GDT_Byte
+# ):
+#     SourceRaster = gdal.Open(RasterGrid)
+#     GeoTrans = SourceRaster.GetGeoTransform()
+#     projection = osr.SpatialReference()
+#     projection.ImportFromWkt(SourceRaster.GetProjectionRef())
+#     xsize = SourceRaster.RasterXSize
+#     ysize = SourceRaster.RasterYSize
+#     driver = gdal.GetDriverByName("GTiff")
+#     Raster = driver.Create(
+#         RasterName, xsize, ysize, 1, output_type, ["COMPRESS=LZW", "TILED=YES"]
+#     )
+#     Raster.SetGeoTransform(GeoTrans)
+#     Raster.SetProjection(projection.ExportToWkt())
+#     band = Raster.GetRasterBand(1)
+#     band.WriteArray(array)
+#     band.SetNoDataValue(nodataval)
+#     return RasterName
+
+

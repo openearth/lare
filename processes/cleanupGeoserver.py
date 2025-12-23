@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2020 Deltares
-#       Gerrit Hendriksen, Ioanna Micha
-#
-#       gerrit.hendriksen@deltares.nl, ioanna.micha@deltares.nl
+#   Copyright (C) 2018 Deltares
+#       Joan Sala
+#       joan.salacalero@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -21,23 +20,16 @@
 #   --------------------------------------------------------------------
 #
 # This tool is part of <a href="http://www.OpenEarth.eu">OpenEarthTools</a>.
-# OpenEarthTools is an onwkt collaboration to share and manage data and
+# OpenEarthTools is an online collaboration to share and manage data and
 # programming tools in an open source, version controlled environment.
 # Sign up to recieve regular updates of this function, and to contribute
 # your own tools.
 
-from sqlalchemy import create_engine
-from utils import read_config
+# $HeadURL: https://svn.oss.deltares.nl/repos/openearthtools/trunk/python/applications/wps/ri2de/processes/cleanupGeoserver.py $
+# $Keywords: $
 
-def createconnectiontodb():
-    """create connection with PostgreSQL database
+from utils import *
+from utils_geoserver import *
 
-    Returns:
-        sqlalchemy engine: SQLalchemy engine
-    """
-    host,user,pwd,db,port,ows_url,username,password = read_config()
-
-    engine = create_engine(
-        "postgresql+psycopg2://{u}:{p}@{h}:5432/{d}".format(u=user, p=pwd, h=host, d=db)
-    )
-    return engine
+cf = read_config()
+cleanup_temp(cf)

@@ -39,14 +39,12 @@ import logging
 
 # from flask_cors import CORS
 
-# Ultimate question
-from processes.wps_ultimate_question import UltimateQuestion
+# RI2DE
+from processes.wps_lare_landscape import WpsLareLandscape
 
-
-# TODO add the proces in the processes list
+# RI2DE processes
 processes = [
-    UltimateQuestion(),
-]
+    WpsLareLandscape()]
 
 # Description used in template
 process_descriptor = {}
