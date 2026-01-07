@@ -32,15 +32,20 @@ import yaml
 
 # imports
 import geopandas
+import logging
 
 # local
 from processes.utils import read_appyml, tempfile
-from processes.utils_wfs import wfs_filter
-from processes.utils_raster import cut_wcs
+from processes.utils_wfs import clipfromwfs_cql
+from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import wfs_filter
 # from utils_raster import cut_wcs
+
+logging.basicConfig(level=logging.INFO)
+
+
 """
 stepwise approach:
 1. retrieve geodataframe from WFS
@@ -50,7 +55,7 @@ stepwise approach:
 4.b create varous hazard mitigation rasters from CLC and scores
 """
 
-def landscape_topo(gdf):
+def lare_dem(gdf,crs=4258):
     # acquire base data from app.yml
     appconfig = read_appyml('app.yml')
     
@@ -62,28 +67,53 @@ def landscape_topo(gdf):
     outfname = tempfile(tmpdir,'dem_','.tif')
 
     # create tuple object from extent
+    # the dem is in 4258, so .... 
+    gdf = gdf.to_crs(crs)
     xmin, ymin, xmax, ymax = gdf.total_bounds
-    dem = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=3035, all_box=True)
+    logging.info("----!!! lare_dem: {}, {}".format(xmin,xmax))
 
-    return dem
+    dem = None
+    try:
+        dem = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
+        msg = f'successfully created dem {outfname}'
+    except Exception as e:
+        msg = e
+    finally:
+        print(msg)
+    return outfname
 
 
 def mainhandler(name):
     msg = None
     # step 1 retrieve GeoDataFrame from WFS
+    name = name.split(':')[1].replace('}','')
+    logging.info("----!!! Derive GeodataFram using: {}".format(name))
+    
     try:
-        gdf = wfs_filter('app.yml',name_contains=name,crs='EPSG:3035')
+        gdf = clipfromwfs_cql(name,'app.yml')
         msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
     except Exception as e:
         msg = f'nothing found for {name}, {e}'
-    finally:
-        print(msg)
+        return None
+    print(msg)
 
-    # step 2, clip dem using extent of Geodataframe
-    dem = landscape_topo(gdf)
+    # step 2a, clip dem using extent of Geodataframe
+    outdem = lare_dem(gdf,4258)
+    outslope = outdem.replace('dem','slope')
+    outaspect = outdem.replace('dem','aspect')
     
+    # step 2b create slope, aspect from the dem
+    compute_slope_aspect_from_dem(
+        dem_path=outdem,
+        slope_out=outslope,
+        aspect_out=outaspect,
+        slope_unit="degree",           # or "percent"
+        auto_reproject_to_utm=False,    # set False if CRS is already metric (e.g., UTM)
+        nodata_value=-9999.0)
     
+    #step 3 is deriving hazards from dem
+    
+
+
     return msg
-
-
 

@@ -26,7 +26,7 @@
 # your own tools.
 
 # example requests
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_landscape&datainputs=nutsname={"nutsname":'oeste'}
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_landscape&datainputs=nutsname={"nutsname":'Oeste'}
 
 # other
 import os

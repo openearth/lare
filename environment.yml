@@ -2,10 +2,10 @@ name: lare
 channels:
   - conda-forge
 dependencies:
-  - python=3
+  - python=3.11
   - pywps
   - flask
-  - rasterio
+  - rasterio=1.4.4
   - pandas
   - numpy
   - ipykernel

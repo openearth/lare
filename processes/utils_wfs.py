@@ -32,23 +32,23 @@
 
 
 import io
+import os
 import json
-import yaml
+import requests
+from io import BytesIO
 import geopandas as gpd
-from owslib.wfs import WebFeatureService
-from owslib.fes2 import PropertyIsLike, Filter, PropertyIsEqualTo, And
-from owslib.etree import etree
-#from owslib.fes import PropertyIsEqualTo, PropertyIsLike, And
+import logging
 
 # from processes.utils import *
 from processes.utils import read_appyml
+logging.basicConfig(level=logging.INFO)
 
 # from utils import read_appyml
 
 
 def wfs_filter(app_cfg_path="app.yml",
                         name_contains=None,
-                        crs="EPSG:4326"):
+                        crs='4326'):
     """
     Returns a GeoDataFrame filtered from WFS using OGC filters.
     """
@@ -60,8 +60,14 @@ def wfs_filter(app_cfg_path="app.yml",
     name_field = wfs_cfg["name_field"]         # "nuts_name"
 
     # Instantiate WFS (prefer 2.0.0 if supported)
-    wfs = WebFeatureService(url=url, version="2.0.0")
-
+    try:
+        wfs = WebFeatureService(url=url, version="2.0.0")
+        logging.info("----!!! wfs_filter: wfs succesfully initialised")
+    except Exception as e:
+        logging.info("----!!! wfs_filter: wfs not initialised")
+        wfs = None
+        return None
+        
     # Build filters
     filters = []
     if name_contains:
@@ -71,8 +77,8 @@ def wfs_filter(app_cfg_path="app.yml",
                 propertyname=name_field,
                 literal=f"%{name_contains}%",
                 wildCard="%",
-                singleChar='_',
-                escapeChar="\\",
+                singleChar='.',
+                escapeChar="!",
                 matchCase=False
             )
         )
@@ -84,35 +90,56 @@ def wfs_filter(app_cfg_path="app.yml",
         ogc_filter = And(filters)
 
     # Request GeoJSON; srsName ensures coordinate axis handling
+    gdf = None
+    # try:
     resp = wfs.getfeature(
-        typename=typename,
+        typename=[typename],
         filter=ogc_filter,
         outputFormat="application/json",  # GeoServer supports this
-        srsname=crs
+        srsname=f'urn:ogc:def:crs:EPSG::{crs}'
     )
-
-    geojson = json.loads(io.BytesIO(resp.read()).getvalue())
-
+    #geojson = json.loads(resp.read())
     # todo --> apparantly filtering doesn't work....!!!
-    agdf = gpd.GeoDataFrame.from_features(geojson)
+    agdf = gpd.read_file(BytesIO(resp.content()))
     gdf = agdf[agdf[f"{name_field}"] == f"{name_contains}"]
+    logging.info("----!!! wfs_filter: geodataframe from filter for region {}".format(name_contains))
+    # except Exception as e:
+    #     logging.info("----!!! wfs_filter: wfs filtering not succesful")
     return gdf
 
 
+def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=None, typename=None):
+    """By applying a CQL Filter on the WFS it is possible to aquire a Geodataframe
 
-def clipfromwfs(wfs,layer,bbx,fn,srs=4326,of='shape-zip'):
-    #wfs11 = WebFeatureService(url='http://localhost:8080/geoserver/global/ows?', version='1.1.0',timeout=320)
-    wfs11 = WebFeatureService(url=wfs, version='1.1.0',timeout=640)
-    try:
-        #response = wfs11.getfeature(typename='global:glhymps', bbox=(75,24,78,26),srsname='urn:x-ogc:def:crs:EPSG:4326',outputFormat='shape-zip')   
-        response = wfs11.getfeature(typename=layer, bbox=bbx,srsname='urn:x-ogc:def:crs:EPSG:{s}'.format(s=srs),outputFormat=of)   
-        if os.path.isfile(fn):
-            os.unlink(fn)
-        out = open(fn, 'wb')
-        out.write(response.read())
-        out.close()
-        return fn
-    except:
-        print(' '.join(['error occurred while clipping layer',layer,'from',wfs]))
-        return None
+    Args:
+        filtervalue (str): Should be a value to filter the WFS using a CQL Filter
+        app_cfg_path (str, optional): Used to derive crucial information if all the following parameters are none. Defaults to "app.yml".
+        url (str, optional): If not none, will be used as url of the geoserver (/ows). Defaults to None, in that case url will be derived from app.yml.
+        name_field (str, optional): Field to filter on. Defaults to None, in that case name_field will be derived from app.yml.
+        typename (str, optional): typename equals to layername of the service provided. Defaults to None, in that case typename will be derived from app.yml.
 
+    Returns:
+        Geodataframe : Geodataframe corresponding with the filtered feature based on filtervalue
+    """
+    cfg = read_appyml(app_cfg_path)
+    wfs_cfg = cfg["ows"]["wfs_nuts"]
+    if url == None:
+        url = wfs_cfg["url"]                       # url of the geoserver https://desirmed.openearth.eu/geoserver/ows
+    if typename == None:
+        typename = wfs_cfg["layer"]                # "region:nuts_2021"
+    if name_field == None:
+        name_field = wfs_cfg["name_field"]         # "nuts_name"
+
+    params = {
+        "service": "WFS",
+        "version": "2.0.0",
+        "request": "GetFeature",
+        "typename": typename,
+        "outputFormat": "application/json",
+        "cql_filter": f"{name_field} = {filtervalue}"  # exact match
+    }
+    r = requests.get(url, params=params)
+    r.raise_for_status()
+    gdf = gpd.read_file(BytesIO(r.content))
+    
+    return gdf
