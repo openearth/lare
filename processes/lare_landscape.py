@@ -31,13 +31,17 @@ import json
 import yaml
 
 # imports
+import numpy as np
+import rasterio
+from rasterio.enums import Resampling
 import geopandas
 import logging
 
 # local
-from processes.utils import read_appyml, tempfile
+from processes.utils import read_appyml, tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
 from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem
+from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast
+from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import wfs_filter
@@ -55,33 +59,173 @@ stepwise approach:
 4.b create varous hazard mitigation rasters from CLC and scores
 """
 
-def lare_dem(gdf,crs=4258):
+def lare_raster(gdf,crs=4258,layer=None):
+    """_summary_
+
+    Args:
+        gdf (Geodataframe): Geopandas dataframe with information an spatial selection (i.e. polygon ar any arbitrary closed surface)
+        crs (int, optional): Coordinate reference system, EPSG int representation. Defaults to 4258.
+        layer (str, optional): Layer of choice, this layer can be available in the config, otherwise should be a layer that can be found.
+
+    Returns:
+        String: name of the raster clipped from the data service
+    """
     # acquire base data from app.yml
     appconfig = read_appyml('app.yml')
-    
+    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+
     # get url and layer
     base = appconfig['ows']['base']
-    layer = appconfig['layers']['dem']
-
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
-    outfname = tempfile(tmpdir,'dem_','.tif')
+    if layer == 'dem':
+        layer = appconfig['layers']['dem']
+        outfname = tempfile(tmpdir,'dem_','.tif')
+    elif layer == 'clc':
+        layer = appconfig['layers']['clc']
+        outfname = tempfile(tmpdir,'clc_','.tif')
+    elif layer == 'eunis':
+            layer = appconfig['layers']['eunis']
+            outfname = tempfile(tmpdir,'eunis_','.tif')        
+    else:
+        print('layer not defined, stop the process')
+        return None
 
     # create tuple object from extent
     # the dem is in 4258, so .... 
     gdf = gdf.to_crs(crs)
     xmin, ymin, xmax, ymax = gdf.total_bounds
-    logging.info("----!!! lare_dem: {}, {}".format(xmin,xmax))
+    logging.info("----!!! lare_raster: {}, {}".format(xmin,xmax))
 
-    dem = None
+    raster = None
     try:
-        dem = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
-        msg = f'successfully created dem {outfname}'
+        raster = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
+        msg = f'successfully clipped {layer} and saved as {outfname}'
     except Exception as e:
         msg = e
     finally:
         print(msg)
     return outfname
 
+def handler_eunis(gdf,hazard=None):
+    msg = None
+
+    # clip EUNIS raster from OGC service
+    outeunis = lare_raster(gdf, 3035, 'eunis')
+    print(outeunis)
+
+
+def handler_clc(gdf,hazard=None):
+    msg = None
+
+    # clip Corine Landcover layer from OGC service
+    outclc = lare_raster(gdf, 3035, 'clc')
+    print(outclc)
+
+    # load raster into array
+    with rasterio.open(outclc) as src:
+        clc_array = src.read(1)
+        meta = src.meta
+        src_nodata = src.nodata
+
+    # add additional metadata items in order to write COG
+
+    # derive hazards using csv from
+    # acquire base data from app.yml
+    appconfig = read_appyml('app.yml')
+    hazards = appconfig['hazards']['clc_scores']
+    for hazard in hazards.keys():
+        clc_lut = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['hazards']['clc_scores'][hazard]))
+        print(clc_lut)
+
+        #load_reclass_table 
+        class_dct = load_reclass_table(clc_lut,'clc','score')
+        # find out what the type is of the value in the csv
+        first_key = next(iter(class_dct))
+        value = class_dct[first_key]
+        dt = np.array(value).dtype #target dtype for this hazard (numpy dtype)
+
+        # compute nodata_cast AFTER dt is known
+        nodata_cast = compute_nodata_cast(src_nodata, dt)
+
+        # classify the arry witht he dictionary and the opened clc array
+        clc_archetype_arr = reclassify_fast(clc_array,class_dct,dtype=str(dt))
+
+        # define output and save raster
+        clc_hazard = outclc.replace('clc',f'clc_{hazard}')
+
+        # enable writing to COG (reduces storage and improves speed)
+        meta.update(
+            dtype=dt,
+            nodata=nodata_cast,
+            tiled=True,                     # COG requirement
+            blockxsize=512,                 # typical COG block size
+            blockysize=512,
+            compress='deflate',             # common for COGs
+            predictor=2,                    # improves compression for int/float
+            BIGTIFF='IF_SAFER'
+        )
+
+        # Write main image
+        with rasterio.open(clc_hazard, 'w', **meta) as dst:
+            dst.write(clc_archetype_arr, 1)
+
+            # Build overviews (COG requirement)
+            oviews = [2, 4, 8, 16, 32]
+            dst.build_overviews(oviews, Resampling.nearest)
+
+            # Make sure metadata reflects overviews
+            dst.update_tags(ns='rio_overview', resampling='nearest')
+
+        # meta.update(dtype=dt,nodata=nodata_cast)
+        # with rasterio.open(clc_hazard, 'w', **meta) as dst:
+        #     dst.write(clc_archetype_arr, 1)
+
+        logging.info(f'! -- Succesfully written landschape archetype data {clc_hazard}')
+
+    return
+
+def handler_dem(gdf):
+    msg = None
+    # step 2a, clip dem using extent of Geodataframe
+    # not very nice, but ... derive tmp path from outdem
+    outdem = lare_raster(gdf, 4258, 'dem')
+    outslope = outdem.replace('dem','slope')
+    outaspect = outdem.replace('dem','aspect')
+    outnorm = outdem.replace('dem','dem_norm')
+    outeast = outdem.replace('dem','dem_eastness')
+    outnorth = outdem.replace('dem','dem_northness')
+    
+    # step 2b create slope, aspect, eastness, northness from the dem
+    compute_slope_aspect_from_dem(
+        dem_path=outdem,
+        slope_out=outslope,
+        aspect_out=outaspect,
+        dem_norm_out = outnorm,
+        dem_eastness = outeast,
+        dem_northness = outnorth,
+        slope_unit="degree",           # or "percent"
+        auto_reproject_to_utm=False,    # set False if CRS is already metric (e.g., UTM)
+        nodata_value=-9999.0)
+    
+    # step 2c is deriving hazards from dem
+    # acquire base data from app.yml
+    appconfig = read_appyml('app.yml')
+    
+    # get url and layer
+    output_path = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['paths']['tmp_base']))
+    output_path = r'c:\develop\lare\processes\tmp'
+    csv_scores = appconfig['scores']['topo_hazards_csv']
+
+    # create a raster based on DEM where DEM is classified in lowland, midland and upland
+    # use topo_elevationscores.csv to create this intermediate dataset
+    classification_df = load_reclass_topo(csv_scores)
+
+    # call function that classifies DEM into a zonal raster defining lowland, midland and highland    
+    zone_dem = classify_elevation_raster(outdem, classification_df)
+
+    # call function that creates susceptibility layers for various hazards.
+    create_hazard_rasters(outdem, classification_df)
+    msg = 'hazards based on dem created'
+    return msg
 
 def mainhandler(name):
     msg = None
@@ -97,23 +241,12 @@ def mainhandler(name):
         return None
     print(msg)
 
-    # step 2a, clip dem using extent of Geodataframe
-    outdem = lare_dem(gdf,4258)
-    outslope = outdem.replace('dem','slope')
-    outaspect = outdem.replace('dem','aspect')
-    
-    # step 2b create slope, aspect from the dem
-    compute_slope_aspect_from_dem(
-        dem_path=outdem,
-        slope_out=outslope,
-        aspect_out=outaspect,
-        slope_unit="degree",           # or "percent"
-        auto_reproject_to_utm=False,    # set False if CRS is already metric (e.g., UTM)
-        nodata_value=-9999.0)
-    
-    #step 3 is deriving hazards from dem
-    
+    # call the handler to clip dem, retrieve derived hazards map from the clipped dem
+    #msg = handler_dem(gdf)
 
+    # call the handler to clip CLC and retrieve derived hazards map from the clipped clc
+    #handler_clc(gdf)
 
-    return msg
+    # call the handler to clip EUNIS
+    handler_eunis(gdf)
 

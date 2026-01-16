@@ -1,46 +1,46 @@
-at2;score;clc;label;desc0;desc2;desc1
-11;1;1;111;Continuous urban fabric;Urban fabric;Artificial Surfaces
-11;1;2;112;Discontinuous urban fabric;Urban fabric;Artificial Surfaces
-12;1;3;121;Industrial or commercial units;Industrial. comercial and transport units;Artificial Surfaces
-12;1;4;122;Road and rail networks and associated land;Industrial. comercial and transport units;Artificial Surfaces
-12;1;5;123;Port areas;Industrial. comercial and transport units;Artificial Surfaces
-12;1;6;124;Airports;Industrial. comercial and transport units;Artificial Surfaces
-13;1;7;131;Mineral extraction sites;Mine. dump and construction sites;Artificial Surfaces
-13;1;8;132;Dump sites;Mine. dump and construction sites;Artificial Surfaces
-13;1;9;133;Construction sites;Mine. dump and construction sites;Artificial Surfaces
-14;1;10;141;Green urban areas;Artificial. non-agricultural vegetated areas;Artificial Surfaces
-14;1;11;142;Sport and leisure facilities;Artificial. non-agricultural vegetated areas;Artificial Surfaces
-21;1;12;211;Non-irrigated arable land;Arable land;Agricultural areas
-21;2;13;212;Permanently irrigated land;Arable land;Agricultural areas
-21;2;14;213;Rice fields;Arable land;Agricultural areas
-22;2;15;221;Vineyards;Permanent crops;Agricultural areas
-22;2;16;222;Fruit trees and berry plantations;Permanent crops;Agricultural areas
-22;2;17;223;Olive groves;Permanent crops;Agricultural areas
-23;2;18;231;Pastures;Pastures;Agricultural areas
-24;2;19;241;Annual crops associated with permanent crops;Heterogeneous agricultural areas;Agricultural areas
-24;2;20;242;Complex cultivation patterns;Heterogeneous agricultural areas;Agricultural areas
-24;2;21;243;Land principally occupied by agriculture with significant areas;Heterogeneous agricultural areas;Agricultural areas
-24;2;22;244;Agro-forestry areas;Heterogeneous agricultural areas;Agricultural areas
-31;3;23;311;Broad-leaved forest;Forest;Forest and seminatural areas
-31;3;24;312;Coniferous forest;Forest;Forest and seminatural areas
-31;3;25;313;Mixed forest;Forest;Forest and seminatural areas
-32;3;26;321;Natural grasslands;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
-32;3;27;322;Moors and heathland;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
-32;3;28;323;Sclerophyllous vegetation;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
-32;3;29;324;Transitional woodland-shrub;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
-33;3;30;331;Beaches;Open spaces with little or no vegetation;Forest and seminatural areas
-33;3;31;332;Bare rocks;Open spaces with little or no vegetation;Forest and seminatural areas
-33;3;32;333;Sparsely vegetated areas;Open spaces with little or no vegetation;Forest and seminatural areas
-33;3;33;334;Burnt areas;Open spaces with little or no vegetation;Forest and seminatural areas
-33;3;34;335;Glaciers and perpetual snow;Open spaces with little or no vegetation;Forest and seminatural areas
-41;4;35;411;Inland marshes;Inland wetlands;Wetlands
-41;4;36;412;Peat bogs;Inland wetlands;Wetlands
-42;4;37;421;Salt marshes;Coastal wetlands;Wetlands
-42;4;38;422;Salines;Coastal wetlands;Wetlands
-42;4;39;423;Intertidal flats;Coastal wetlands;Wetlands
-51;5;40;511;Water courses;Inland waters;Water bodies
-51;5;41;512;Water bodies;Inland waters;Water bodies
-52;5;42;521;Coastal lagoons;Marine waters;Water bodies
-52;5;43;522;Estuaries;Marine waters;Water bodies
-52;5;44;523;Sea and ocean;Marine waters;Water bodies
-99;9;48;999;NODATA;NODATA;NODATA
+at2;score;clc;lac;lac_d;lac_st;lac_std;label;desc0;desc2;desc1
+11;1;1;2;Urban;5;Inland urban;111;Continuous urban fabric;Urban fabric;Artificial Surfaces
+11;1;2;2;Urban;5;Inland urban;112;Discontinuous urban fabric;Urban fabric;Artificial Surfaces
+12;1;3;2;Urban;5;Inland urban;121;Industrial or commercial units;Industrial. comercial and transport units;Artificial Surfaces
+12;1;4;2;Urban;5;Inland urban;122;Road and rail networks and associated land;Industrial. comercial and transport units;Artificial Surfaces
+12;1;5;2;Urban;5;Inland urban;123;Port areas;Industrial. comercial and transport units;Artificial Surfaces
+12;1;6;2;Urban;6;Industry and port;124;Airports;Industrial. comercial and transport units;Artificial Surfaces
+13;1;7;2;Urban;;;131;Mineral extraction sites;Mine. dump and construction sites;Artificial Surfaces
+13;1;8;2;Urban;7;Coastal urban;132;Dump sites;Mine. dump and construction sites;Artificial Surfaces
+13;1;9;2;Urban;;;133;Construction sites;Mine. dump and construction sites;Artificial Surfaces
+14;1;10;2;Urban;8;Suburban;141;Green urban areas;Artificial. non-agricultural vegetated areas;Artificial Surfaces
+14;1;11;2;Urban;8;Suburban;142;Sport and leisure facilities;Artificial. non-agricultural vegetated areas;Artificial Surfaces
+21;1;12;3;Rural;9;Agricultural land;211;Non-irrigated arable land;Arable land;Agricultural areas
+21;2;13;3;Rural;9;Agricultural land;212;Permanently irrigated land;Arable land;Agricultural areas
+21;2;14;3;Rural;;;213;Rice fields;Arable land;Agricultural areas
+22;2;15;3;Rural;;;221;Vineyards;Permanent crops;Agricultural areas
+22;2;16;3;Rural;;;222;Fruit trees and berry plantations;Permanent crops;Agricultural areas
+22;2;17;3;Rural;;;223;Olive groves;Permanent crops;Agricultural areas
+23;2;18;3;Rural;;;231;Pastures;Pastures;Agricultural areas
+24;2;19;3;Rural;;;241;Annual crops associated with permanent crops;Heterogeneous agricultural areas;Agricultural areas
+24;2;20;3;Rural;9;Agricultural land;242;Complex cultivation patterns;Heterogeneous agricultural areas;Agricultural areas
+24;2;21;3;Rural;9;Agricultural land;243;Land principally occupied by agriculture with significant areas;Heterogeneous agricultural areas;Agricultural areas
+24;2;22;;;;;244;Agro-forestry areas;Heterogeneous agricultural areas;Agricultural areas
+31;3;23;4;Mountainous;10;Mountainous forest;311;Broad-leaved forest;Forest;Forest and seminatural areas
+31;3;24;;;;;312;Coniferous forest;Forest;Forest and seminatural areas
+31;3;25;;;;;313;Mixed forest;Forest;Forest and seminatural areas
+32;3;26;4;Mountainous;10;Mountainous forest;321;Natural grasslands;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
+32;3;27;;;;;322;Moors and heathland;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
+32;3;28;;;;;323;Sclerophyllous vegetation;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
+32;3;29;;;;;324;Transitional woodland-shrub;Shrub and/or herbaceous vegetation associations;Forest and seminatural areas
+33;3;30;1;Coastal;2;Beach Dune;331;Beaches;Open spaces with little or no vegetation;Forest and seminatural areas
+33;3;31;;;;;332;Bare rocks;Open spaces with little or no vegetation;Forest and seminatural areas
+33;3;32;;;;;333;Sparsely vegetated areas;Open spaces with little or no vegetation;Forest and seminatural areas
+33;3;33;;;;;334;Burnt areas;Open spaces with little or no vegetation;Forest and seminatural areas
+33;3;34;;;;;335;Glaciers and perpetual snow;Open spaces with little or no vegetation;Forest and seminatural areas
+41;4;35;1;Coastal;4;Estuary Lagoon;411;Inland marshes;Inland wetlands;Wetlands
+41;4;36;;;;;412;Peat bogs;Inland wetlands;Wetlands
+42;4;37;1;Coastal;1;Coastal Marine;421;Salt marshes;Coastal wetlands;Wetlands
+42;4;38;1;Coastal;3;Delta;422;Salines;Coastal wetlands;Wetlands
+42;4;39;1;Coastal;1;Coastal Marine;423;Intertidal flats;Coastal wetlands;Wetlands
+51;5;40;1;Coastal;3;Delta;511;Water courses;Inland waters;Water bodies
+51;5;41;1;Coastal;3;Delta;512;Water bodies;Inland waters;Water bodies
+52;5;42;1;Coastal;1;Coastal Marine;521;Coastal lagoons;Marine waters;Water bodies
+52;5;43;1;Coastal;1;Coastal Marine;522;Estuaries;Marine waters;Water bodies
+52;5;44;1;Coastal;1;Coastal Marine;523;Sea and ocean;Marine waters;Water bodies
+99;9;48;999;NODATA;999;NODATA;999;NODATA;NODATA;NODATA

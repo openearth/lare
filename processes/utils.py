@@ -33,7 +33,9 @@
 import time
 import os
 import pathlib
+import numpy as np
 import json
+import pandas as pd
 import configparser
 import yaml
 
@@ -102,3 +104,82 @@ def read_appyml(fn='app.yml'):
 	else:
 		with open(fn, "r") as f:
 			return yaml.safe_load(f)
+		
+# -----------------------------
+# 3. Load reclassification table
+# -----------------------------
+def load_reclass_table(csv_path, lusecol=None, reclasscol=None):
+    if not os.path.isfile(csv_path):
+        print(f'File {csv_path} not found')
+        return None
+    try:
+        df = pd.read_csv(csv_path, delimiter=';')
+    except Exception as e:
+        print(f'Failed to read reclassification CSV {csv_path}:', e)
+        return None
+    if lusecol not in df.columns or reclasscol not in df.columns:
+        print(f'Columns "{lusecol}" and/or "{reclasscol}" not found in {csv_path}')
+        return None
+    return dict(zip(df[lusecol], df[reclasscol]))
+
+def load_reclass_topo(csv_scores):
+    csvpath = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', csv_scores))
+    df = pd.read_csv(csvpath,delimiter=';')
+    return df
+
+# -----------------------------
+# 3. Load reclassification table 
+#    with classes, to remap continuos data
+# -----------------------------
+def load_reclass_table_continousdata(csv_path,clmin='min',clmax='max',clscore='score'):
+	print('load_reclass_table_continousdata ', csv_path)
+	df = pd.read_csv(csv_path, sep=';')
+    # Ensure numeric types
+	df[clmin] = pd.to_numeric(df[clmin])
+	df[clmax] = pd.to_numeric(df[clmax])
+	df[clscore] = pd.to_numeric(df[clscore], downcast='integer')
+	return df
+
+
+def coerce_reclass_dict_to_array_dtype(array, reclass_dict):
+	arr_type = array.dtype.type
+	coerced = {}
+	for k, v in reclass_dict.items():
+		try:
+			coerced[arr_type(k)] = v
+		except Exception:
+			coerced[k] = v
+	return coerced
+
+
+# ---- NODATA: compute nodata_cast AFTER dt is known ----
+def compute_nodata_cast(src_nodata, target_dt):
+	"""Return nodata cast to target dtype, or None if source had no nodata.
+		Raise if NaN cannot be represented in integer target."""
+	if src_nodata is None:
+		return None
+
+	target_dt = np.dtype(target_dt)
+
+	# Floating targets can always carry NaN
+	if np.issubdtype(target_dt, np.floating):
+		# treat any NaN-like nodata as NaN
+		if isinstance(src_nodata, float) and np.isnan(src_nodata):
+			return np.nan
+		return target_dt.type(src_nodata)
+
+	# Integer targets cannot represent NaN
+	if isinstance(src_nodata, float) and np.isnan(src_nodata):
+		raise ValueError(
+			f"Source nodata is NaN but target dtype {target_dt} is integer. "
+			"Choose an explicit integer nodata or keep a float dtype."
+		)
+
+	# Ensure integer nodata fits in the target integer range
+	info = np.iinfo(target_dt)
+	if not (info.min <= src_nodata <= info.max):
+		raise ValueError(
+			f"Source nodata {src_nodata} out of range for target dtype {target_dt} "
+			f"[{info.min}, {info.max}]"
+		)
+	return target_dt.type(src_nodata)

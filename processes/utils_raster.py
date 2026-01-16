@@ -29,15 +29,17 @@
 # $Keywords: $
 
 import os
-import glob
 import numpy as np
 import rasterio
+import xarray as xr
 from scipy.ndimage import grey_dilation
+import rasterio
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import Affine
 
-from processes.utils_wcs import *
+from processes.utils import coerce_reclass_dict_to_array_dtype
+from processes.utils_wcs import LS
 from processes.utils_vector import *
 
 # from utils_wcs import *
@@ -220,9 +222,13 @@ def compute_slope_aspect_from_dem(
         dem_path: str,
         slope_out: str,
         aspect_out: str,
+        dem_norm_out: str,
+        dem_eastness: str,
+        dem_northness: str,
         slope_unit: str = "degree",
         auto_reproject_to_utm: bool = True,
-        nodata_value: float = -9999.0,):
+        nodata_value: float = -9999.0,
+        ):
     """
     High-level function:
     - Opens DEM,
@@ -255,4 +261,473 @@ def compute_slope_aspect_from_dem(
         print(f"Computed aspect (0–360°, 0=N) → {aspect_out}")
         if was_reprojected:
             print("Note: DEM was reprojected to a UTM CRS for metric derivatives.")
+
+        # Normalize slope
+        slope_cap = 60 # find out what this means)
+        slope_norm = np.clip(slope / slope_cap, 0.0, 1.0)
+
+        # Aspect to radians
+        aspect_rad = np.deg2rad(aspect)
+        northness = (np.cos(aspect_rad) + 1.0) / 2.0
+        eastness = (np.sin(aspect_rad) + 1.0) / 2.0
+
+        # Save using the working_ds spatial metadata
+        save_geotiff(dem_norm_out, slope_norm, working_ds, nodata_value=nodata_value)
+        save_geotiff(dem_northness, northness, working_ds, nodata_value=nodata_value)
+        save_geotiff(dem_eastness, eastness, working_ds, nodata_value=nodata_value)
+            
     return
+
+
+# -----------------------------
+# Utility: dtype & nodata helpers
+# -----------------------------
+def default_nodata(np_dtype):
+    if np.issubdtype(np_dtype, np.floating):
+        return np.nan
+    if np.issubdtype(np_dtype, np.signedinteger):
+        return np.iinfo(np_dtype).min
+    if np.issubdtype(np_dtype, np.unsignedinteger):
+        return np.iinfo(np_dtype).max
+    return None
+
+
+def normalize_dtype(dtype, fallback_np_dtype=None):
+    if dtype is None:
+        np_dtype = np.dtype(fallback_np_dtype) if fallback_np_dtype is not None else np.dtype('float32')
+    elif isinstance(dtype, np.dtype):
+        np_dtype = dtype
+    elif isinstance(dtype, str):
+        dt = dtype.lower()
+        if dt in ('int', 'int32'):
+            np_dtype = np.dtype('int32')
+        elif dt in ('int16', 'int64', 'uint8', 'uint16', 'uint32'):
+            np_dtype = np.dtype(dt)
+        elif dt in ('float', 'float32'):
+            np_dtype = np.dtype('float32')
+        elif dt in ('float64',):
+            np_dtype = np.dtype('float64')
+        else:
+            np_dtype = np.dtype(dt)
+    else:
+        np_dtype = np.dtype(dtype)
+    return np_dtype, np_dtype.name
+
+def ensure_nodata_compatible(np_dtype, nodata_value):
+    if nodata_value is None:
+        return default_nodata(np_dtype)
+    if np.issubdtype(np_dtype, np.floating):
+        return np.nan if (isinstance(nodata_value, float) and np.isnan(nodata_value)) else float(nodata_value)
+    try:
+        iv = int(nodata_value)
+    except Exception:
+        return default_nodata(np_dtype)
+    info = np.iinfo(np_dtype)
+    return iv if info.min <= iv <= info.max else default_nodata(np_dtype)
+
+
+# -----------------------------
+# 5. Reproject to EPSG:4326
+# -----------------------------
+def reproject_to_4326(array, meta, dtype='int32', nodata_out=None):
+    if array is None or meta is None:
+        print('Reprojection skipped: missing array or meta.')
+        return None, None
+    np_dtype, rio_dtype = normalize_dtype(dtype, fallback_np_dtype=array.dtype)
+    if nodata_out is None:
+        nodata_out = default_nodata(np_dtype)
+    dst_crs = "EPSG:4326"
+    src_crs = meta.get('crs')
+    src_transform = meta.get('transform')
+    src_width = meta.get('width')
+    src_height = meta.get('height')
+    if src_crs is None or src_transform is None:
+        print('Reprojection failed: incomplete metadata.')
+        return None, None
+    try:
+        left, bottom, right, top = rasterio.transform.array_bounds(src_height, src_width, src_transform)
+        dst_transform, dst_width, dst_height = calculate_default_transform(
+            src_crs, dst_crs, src_width, src_height, left, bottom, right, top
+        )
+    except Exception as e:
+        print('Reprojection not successful (transform calculation):', e)
+        return None, None
+    reprojected = np.empty((dst_height, dst_width), dtype=np_dtype)
+    try:
+        reproject(
+            source=array,
+            destination=reprojected,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=dst_crs,
+            resampling=Resampling.nearest,
+            src_nodata=nodata_out,
+            dst_nodata=nodata_out
+        )
+    except Exception as e:
+        print('Reprojection not successful (warp):', e)
+        return None, None
+    new_meta = meta.copy()
+    new_meta.update({
+        "crs": dst_crs,
+        "transform": dst_transform,
+        "width": dst_width,
+        "height": dst_height,
+        "dtype": rio_dtype,
+        "count": 1,
+        "nodata": nodata_out
+    })
+    return reprojected, new_meta
+
+# -----------------------------
+# 2. Clip raster with polygon
+# -----------------------------
+def clip_raster(raster_path, polygon_gdf, nodata=None):
+    if polygon_gdf is None:
+        print('No polygon provided for clipping.')
+        return None, None
+    if not os.path.isfile(raster_path):
+        print(f'File {raster_path} not found')
+        return None, None
+    try:
+        with rasterio.open(raster_path) as src:
+            polygon_geom = [polygon_gdf.geometry.unary_union]
+            src_dtype = np.dtype(src.dtypes[0])
+            original_nodata = src.nodata if src.nodata is not None else default_nodata(src_dtype)
+            nodata_fill = original_nodata if nodata is None else nodata
+            out_image, out_transform = mask(src, polygon_geom, crop=True, filled=True, nodata=nodata_fill)
+            out_meta = src.meta.copy()
+            out_meta.update({
+                "height": out_image.shape[1],
+                "width": out_image.shape[2],
+                "transform": out_transform,
+                "count": 1,
+                "nodata": original_nodata
+            })
+    except Exception as e:
+        print('Clipping raster failed:', e)
+        return None, None
+    return out_image[0], out_meta
+
+def open_raster(raster_path, nodata=None, read_all_bands=True, masked=True):
+    """
+    Open a raster and return its array and metadata.
+
+    Parameters
+    ----------
+    raster_path : str
+        Path to the raster file.
+    nodata : float or int, optional
+        Nodata value to use. If None, uses the raster's original nodata (if present),
+        otherwise falls back to a dtype-based default for masking only.
+        If provided, it will also update the returned metadata's 'nodata' field.
+    read_all_bands : bool, default True
+        If True, returns all bands with shape (count, height, width).
+        If False, returns only the first band with shape (height, width).
+    masked : bool, default True
+        If True, returns a numpy.ma.MaskedArray where nodata values are masked.
+        If False, returns a regular numpy array.
+
+    Returns
+    -------
+    tuple
+        (array, metadata) or (None, None) if opening fails.
+
+    Notes
+    -----
+    - The metadata dict includes keys commonly used by rasterio:
+      'driver', 'dtype', 'nodata', 'width', 'height', 'count', 'crs', 'transform'.
+    - When `masked=True`, masking uses:
+        - `nodata` (if provided), else
+        - `src.nodata` (from the file), else
+        - a dtype-based default for masking only
+      This masking choice does NOT alter pixel values; it only builds a mask.
+    """
+
+    def default_nodata(dtype):
+        """Fallback nodata for masking when none is defined on the raster."""
+        # Pick conservative defaults; adjust to your conventions if needed.
+        if np.issubdtype(dtype, np.integer):
+            return -9999
+        elif np.issubdtype(dtype, np.floating):
+            return np.nan
+        else:
+            return None
+
+    try:
+        with rasterio.open(raster_path) as src:
+            # Base metadata from source
+            out_meta = src.meta.copy()
+
+            # Determine effective nodata to use for masking
+            src_dtype = np.dtype(src.dtypes[0])
+            original_nodata = src.nodata
+            nodata_effective = (
+                nodata if nodata is not None
+                else (original_nodata if original_nodata is not None
+                      else default_nodata(src_dtype))
+            )
+
+            # Read array (all bands), then slice if needed
+            arr = src.read()  # shape: (count, height, width)
+            if not read_all_bands:
+                arr = arr[0]  # shape: (height, width)
+
+            # Build a mask if requested
+            if masked:
+                # Masking depends on whether nodata_effective is NaN or a value
+                if isinstance(nodata_effective, float) and np.isnan(nodata_effective):
+                    mask = np.isnan(arr)
+                elif nodata_effective is not None:
+                    mask = (arr == nodata_effective)
+                else:
+                    mask = np.zeros_like(arr, dtype=bool)
+
+                arr = np.ma.array(arr, mask=mask)
+
+            # Update metadata to reflect what we are returning
+            # (height/width/count might be unchanged, but we set explicitly)
+            if read_all_bands:
+                height, width = arr.shape[-2], arr.shape[-1]
+                count = arr.shape[0]
+            else:
+                height, width = arr.shape[-2], arr.shape[-1]
+                count = 1
+
+            out_meta.update({
+                "height": height,
+                "width": width,
+                "count": count,
+                # If user specified nodata, reflect that preference in the metadata;
+                # otherwise keep the source nodata as-is.
+                "nodata": nodata if nodata is not None else original_nodata
+            })
+
+            return arr, out_meta
+
+    except Exception as e:
+        print(f"Opening raster failed: {e}")
+        return None, None
+
+# -----------------------------
+# 6. Save raster
+# -----------------------------
+def save_raster(array, meta, output_path, dtype=None, cog=False, nodata_out=None):
+    if array is None or meta is None:
+        print('Save skipped: missing array or meta.')
+        return
+    np_dtype, rio_dtype = normalize_dtype(dtype, fallback_np_dtype=array.dtype)
+    if nodata_out is None:
+        nodata_out = ensure_nodata_compatible(np_dtype, meta.get('nodata'))
+    out_meta = meta.copy()
+    out_meta.update({"dtype": rio_dtype, "count": 1, "nodata": nodata_out})
+    if cog:
+        out_meta.update({"driver": "COG", "compress": "deflate"})
+    else:
+        if "driver" not in out_meta:
+            out_meta.update({"driver": "GTiff"})
+    arr = array.astype(np_dtype, copy=False)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    try:
+        with rasterio.open(output_path, "w", **out_meta) as dst:
+            dst.write(arr, 1)
+        print(f'Raster saved to {output_path} (dtype={rio_dtype}, nodata={nodata_out}, driver={out_meta["driver"]})')
+    except Exception as e:
+        print(f'Failed to save raster to {output_path}:', e)
+
+
+
+# Function that builds a stack, writes multiband, and (optionally) saves per-band using save_raster ---
+def _ensure_2d_yx(da: xr.DataArray, name=None) -> xr.DataArray:
+    """
+    Normalize a DataArray to 2D ('y','x'):
+    - squeeze a single-band dim if present,
+    - reorder dims to ('y','x'),
+    - validate it has y/x coords.
+    """
+    if "band" in da.dims and da.sizes.get("band", 0) == 1:
+        da = da.squeeze("band", drop=True)
+
+    if set(da.dims) == {"x", "y"} and tuple(da.dims) != ("y", "x"):
+        da = da.transpose("y", "x")
+
+    if da.dims != ("y", "x"):
+        raise ValueError(f"Expected 2D DataArray with dims ('y','x'), got dims {da.dims}")
+
+    if "y" not in da.coords or "x" not in da.coords:
+        raise ValueError("DataArray must have 'y' and 'x' coordinates for stacking.")
+
+    if name is not None:
+        da.name = name
+    return da
+
+
+def build_and_save_stack_from_list(
+    arrays,
+    output_path="nbs_hotspots.tif",
+    band_names=None,
+    nodata=np.nan,
+    compress="DEFLATE",
+    tiled=True,
+    windowed=True,
+    save_each_band=False,
+    per_band_dir=None,
+    per_band_dtype=None,
+    per_band_cog=False,
+    strict_check=True,
+    cast_to_float_if_nan=True,
+    set_band_descriptions_fallback=True,
+):
+    """
+    Create a multiband stack from a list of rioxarray/xarray DataArrays, save a multiband GeoTIFF,
+    and optionally save each band separately using `save_raster`.
+    """
+    # --- Validate inputs ---
+    if arrays is None or len(arrays) == 0:
+        raise ValueError("`arrays` must be a non-empty list of xr.DataArray objects.")
+
+    normalized = []
+    for i, da in enumerate(arrays):
+        if not isinstance(da, xr.DataArray):
+            raise TypeError(f"Item {i} in `arrays` is not an xarray.DataArray (got {type(da)}).")
+        if not hasattr(da, "rio"):
+            raise TypeError(f"Item {i} does not have a .rio accessor. Ensure rioxarray is installed/enabled.")
+        normalized.append(_ensure_2d_yx(da, name=getattr(da, "name", f"band_{i+1}")))
+
+    arrays = normalized
+    n_bands = len(arrays)
+
+    # Default band names if not provided
+    if band_names is None:
+        band_names = [da.name if da.name else f"band_{i+1}" for i, da in enumerate(arrays)]
+    else:
+        if len(band_names) != n_bands:
+            raise ValueError("`band_names` length must match number of arrays.")
+
+    # --- Optional strict checks for alignment ---
+    if strict_check:
+        ref = arrays[0]
+        ref_shape = ref.shape
+        ref_crs = ref.rio.crs
+        ref_transform = ref.rio.transform()
+        ref_x = ref.coords["x"].values
+        ref_y = ref.coords["y"].values
+
+        for i, da in enumerate(arrays[1:], start=2):
+            if da.shape != ref_shape:
+                raise ValueError(f"Array {i} has differing shape {da.shape} vs {ref_shape}. Reproject/align first.")
+            if da.rio.crs != ref_crs:
+                raise ValueError(f"Array {i} has differing CRS {da.rio.crs} vs {ref_crs}. Reproject/align first.")
+            if not np.allclose(np.asarray(ref_transform), np.asarray(da.rio.transform()), rtol=0, atol=1e-9):
+                raise ValueError("Transforms differ; reproject/align with rio.reproject_match().")
+            if not (np.array_equal(ref_x, da.coords["x"].values) and np.array_equal(ref_y, da.coords["y"].values)):
+                raise ValueError("x/y coordinates differ; reproject/align before stacking.")
+
+    # --- Prevent nodata/dtype conflicts ---
+    if cast_to_float_if_nan and (isinstance(nodata, float) and np.isnan(nodata)):
+        if any(np.issubdtype(da.dtype, np.integer) for da in arrays):
+            arrays = [da.astype(np.float32) for da in arrays]
+
+    # --- Build the stack (exact join avoids silent coord expansion) ---
+    stack = xr.concat(arrays, dim="band", join="exact")
+    stack = stack.assign_coords(band=list(range(1, n_bands + 1)))
+    stack.rio.write_nodata(nodata, inplace=True)
+
+    # Try band descriptions via rioxarray (may not be available in some versions)
+    try:
+        stack.rio.write_band_descriptions(list(band_names), inplace=True)
+    except Exception as e:
+        print("Warning: rioxarray band descriptions failed:", e)
+
+    # --- Save multiband raster ---
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    stack.rio.to_raster(
+        output_path,
+        compress=compress,
+        tiled=tiled,
+        windowed=windowed
+    )
+    print(f"Multiband raster saved to {output_path} with {n_bands} bands (nodata={nodata})")
+
+    # --- Fallback: set band descriptions with rasterio if needed ---
+    if set_band_descriptions_fallback and band_names:
+        try:
+            with rasterio.open(output_path, "r+") as dst:
+                for idx, desc in enumerate(band_names, start=1):
+                    dst.set_band_description(idx, str(desc))
+            print("Band descriptions written via rasterio fallback.")
+        except Exception as e:
+            print("Warning: could not set band descriptions via rasterio:", e)
+
+    # --- Optionally save per-band rasters using save_raster ---
+    if save_each_band:
+        # Derive meta directly from the stack (do not use stack.rio.profile)
+        height = stack.sizes["y"]
+        width = stack.sizes["x"]
+        transform = stack.rio.transform()
+        crs = stack.rio.crs
+
+        if per_band_dir is None:
+            root, _ = os.path.splitext(output_path)
+            per_band_dir = f"{root}_bands"
+        os.makedirs(per_band_dir, exist_ok=True)
+
+        for b_idx in range(n_bands):
+            band_arr = stack.isel(band=b_idx).values
+            single_meta = {
+                "width": width,
+                "height": height,
+                "transform": transform,
+                "crs": crs,
+                "nodata": nodata,
+            }
+            band_name = band_names[b_idx]
+            band_out = os.path.join(per_band_dir, f"{band_name}.tif")
+
+            # Use your existing save_raster
+            save_raster(
+                array=band_arr,
+                meta=single_meta,
+                output_path=band_out,
+                dtype=per_band_dtype,
+                cog=per_band_cog,
+                nodata_out=nodata
+            )
+
+    return stack
+
+
+
+# -----------------------------
+# 4. Fast reclassification using lookup array
+# -----------------------------
+def reclassify_fast(array, reclass_dict, dtype='int32', nodata_out=None, original_nodata=None):
+    if array is None or reclass_dict is None:
+        print('Reclassification skipped: missing array or dictionary.')
+        return None
+    print('dtype',dtype)
+    np_dtype = np.dtype(dtype)
+    if nodata_out is None:
+        nodata_out = default_nodata(np_dtype)
+    
+    try:
+        reclass_dict = coerce_reclass_dict_to_array_dtype(array, reclass_dict)
+    except Exception as e:
+        print('Exception {e} occurred while coercing dictionary')
+
+    max_val = int(array.max()) if array.size > 0 else 0
+    lookup = np.full(max_val + 1, nodata_out, dtype=np_dtype)
+    for k, v in reclass_dict.items():
+        try:
+            idx = int(k)
+            if 0 <= idx <= max_val:
+                lookup[idx] = v
+        except ValueError:
+            continue
+    out = np.take(lookup, array, mode='clip')
+    if original_nodata is not None:
+        mask_nodata = (array == original_nodata)
+        out[mask_nodata] = nodata_out
+    print('about to return',print)
+    return out

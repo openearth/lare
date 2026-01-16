@@ -31,9 +31,17 @@ import numpy as np
 from owslib.wcs import WebCoverageService
 from owslib.util import Authentication
 from shapely import wkt
+import rasterio
+from rasterio.shutil import copy as rio_copy
+from rasterio.enums import Resampling
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # TODO Check how can it be improved
 ## TO READ WCS outputs
+
 class WCS:
     """WCS object to get metadata etc and to get grid."""
 
@@ -71,9 +79,36 @@ class WCS:
             width=self.width,
             height=self.height,
         )
-        f = open(fn, "wb")
-        f.write(gc.read())
-        f.close()
+        # in stead of writing a raster, switch to write to COG, hmm... this does not work
+        try:
+            with rasterio.open(gc.read()) as src:
+                # Create tiled + compressed base image
+                profile = src.profile.copy()
+                profile.update(
+                    tiled=True,
+                    blockxsize=512,
+                    blockysize=512,
+                    compress="deflate",
+                    predictor=2,
+                    BIGTIFF="IF_SAFER"
+                )
+
+                # Write temp intermediate file
+                with rasterio.open(fn, "w", **profile) as dst:
+                    for b in src.indexes:
+                        dst.write(src.read(b), b)
+                    
+                    # Create overviews
+                    factors = [2, 4, 8, 16, 32]
+                    dst.build_overviews(factors, Resampling.nearest)
+                    dst.update_tags(ns="rio_cogeo", resampling="nearest")
+            
+            logging.info(f'!--- succesfully create COG TIFF {fn}')
+        except:
+            f = open(fn, "wb")
+            f.write(gc.read())
+            f.close()
+            logging.info(f'!--- COG writing failed, switched to creating standard TIFF {fn}')
         return fn
 
     def getw_with_auth(self, fn):
@@ -91,6 +126,7 @@ class WCS:
         f.write(gc.read())
         f.close()
         return fn
+
 
 
 ## TO handle transects
