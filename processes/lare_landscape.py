@@ -83,12 +83,12 @@ def lare_raster(gdf,crs=4258,layer=None):
         layer = appconfig['layers']['clc']
         outfname = tempfile(tmpdir,'clc_','.tif')
     elif layer == 'eunis':
-            layer = appconfig['layers']['eunis']
-            outfname = tempfile(tmpdir,'eunis_','.tif')        
+        layer = appconfig['layers']['eunis']
+        outfname = tempfile(tmpdir,'eunis_','.tif')        
     else:
         print('layer not defined, stop the process')
         return None
-
+    print(f'layer requested {layer} and to be produces {outfname}')
     # create tuple object from extent
     # the dem is in 4258, so .... 
     gdf = gdf.to_crs(crs)
@@ -110,7 +110,7 @@ def handler_eunis(gdf,hazard=None):
 
     # clip EUNIS raster from OGC service
     outeunis = lare_raster(gdf, 3035, 'eunis')
-    print(outeunis)
+    print(type(outeunis))
 
 
 def handler_clc(gdf,hazard=None):
@@ -242,11 +242,41 @@ def mainhandler(name):
     print(msg)
 
     # call the handler to clip dem, retrieve derived hazards map from the clipped dem
+    msg = None
     #msg = handler_dem(gdf)
+    #logging.info(f'!-- dem clipped and saved for {name}. Possible message {msg}')
 
     # call the handler to clip CLC and retrieve derived hazards map from the clipped clc
-    #handler_clc(gdf)
+    msg = None
+    msg = handler_clc(gdf)
+    logging.info(f'!-- CLC clipped and saved for {name}. Possible message {msg}')
 
     # call the handler to clip EUNIS
-    handler_eunis(gdf)
+    msg = None
+    msg = handler_eunis(gdf)
+    logging.info(f'!-- EUNIS clipped and saved for {name}. Possible message {msg}')
+
+    # TODO: provide front end with correct, not sure yet what is needed.
+
+
+def mainhandler_hazard(name, hazard):
+    print('in main handler',name, hazard)    
+    msg = None
+
+    # step 1 retrieve GeoDataFrame from WFS
+    logging.info("----!!! Derive GeodataFram using: {}".format(name))
+    
+    try:
+        print('in try with name',name)
+        gdf = clipfromwfs_cql(name,'app.yml')
+        msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
+        print('in try with name',msg)
+    except Exception as e:
+        msg = f'nothing found for {name}, {e}'
+        return None
+    print(msg)
+    
+    print('start the handler_clc')
+    msg = handler_clc(gdf,hazard=hazard)
+    print(msg)
 

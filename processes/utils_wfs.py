@@ -138,6 +138,7 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
         "outputFormat": "application/json",
         "cql_filter": f"{name_field} = {filtervalue}"  # exact match
     }
+    logging.info('!--- filtering wfs with parameters',typename,name_field)
     r = requests.get(url, params=params)
     r.raise_for_status()
     gdf = gpd.read_file(BytesIO(r.content))

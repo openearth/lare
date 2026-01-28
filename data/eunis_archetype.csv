@@ -1,0 +1,29 @@
+eunis; eunis_label; description;archetype;desription
+55;J2-2012;Low density buildings;1;Urban/ semi-urban
+57;J4-2012;Transport networks and other constructed hard-surfaced areas;1;Urban/ semi-urban
+54;J1.2-2012;Residential buildings of villages and urban peripheries;1;Urban/ semi-urban
+57;J4.5-2012;Hard-surfaced areas of ports;1;Urban/ semi-urban
+57;J4.4-2012;Airport runways and aprons;1;Urban/ semi-urban
+54;J1-2012;Buildings of cities, towns and villages;1;Urban/ semi-urban
+56;J3-2012;Extractive industrial sites;1;Urban/ semi-urban
+54;J1.6-2012;Urban and suburban construction and demolition sites;1;Urban/ semi-urban
+54;J1.7;High density temporary residential units;1;Urban/ semi-urban
+;V1;Arable land and market gardens;2;Agriculture
+;X11-2012;Large parks;2;Agriculture
+;R2;Mesic grasslands;2;Agriculture
+;V53;Shrub plantations for ornamental purposes or for fruit, other than vineyards;2;Agriculture
+;;Complex cultivation patterns;2;Agriculture
+;J1.3;Arable land with unmixed crops grown by low-intensity agricultural methods;2;Agriculture
+;G1;Broadleaved deciduous woodland;3;Natural areas
+;G3;Coniferous woodland;3;Natural areas
+;G4;Mixed deciduous and coniferous woodland;3;Natural areas
+;E1;Dry grasslands;3;Natural areas
+;F4;Temperate shrub heathland;3;Natural areas
+;E5;Woodland fringes and clearings and tall forb stands;3;Natural areas
+;B1;Coastal dunes and sandy shores;3;Natural areas
+;C3;Littoral zone of inland surface waterbodies;3;Natural areas
+;A2.5;Coastal saltmarshes and saline reedbeds;3;Natural areas
+;A2.2;Littoral sand;3;Natural areas
+;C2;Surface running waters;3;Natural areas
+;C1;Surface standing waters;3;Natural areas
+;X01;Estuaries;3;Natural areas

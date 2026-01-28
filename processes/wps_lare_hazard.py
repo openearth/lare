@@ -27,7 +27,7 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_landscape&datainputs=nutsname={"nutsname":'Menorca'}
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname=Menorca;hazard=fire
 # http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_landscape&datainputs=nutsname={"nutsname":'Splitsko-dalmatinska županija'}
 
 # other
@@ -36,34 +36,47 @@ import json
 
 # PyWPS
 from pywps import Process, Format, FORMATS
-from pywps.inout.inputs import ComplexInput
+from pywps.inout.inputs import LiteralInput
 from pywps.inout.outputs import ComplexOutput
 from pywps.app.Common import Metadata
 
 # local
-from .lare_landscape import mainhandler
+from .lare_landscape import mainhandler_hazard
 
-class WpsLareLandscape(Process):
+class WpsLareHazard(Process):
 
 	def __init__(self):
 		# Input [in json format ]
-		inputs = [ComplexInput('nutsname','Nutsname of the the region selected',
-			supported_formats=[Format('application/json')])]
+		inputs = [
+			LiteralInput(
+                identifier='nutsname',
+                title='Name of the level 3 nuts regions',
+                abstract='String identifying the nutsregion, level 3',
+                data_type='string',
+                keywords=['nuts region', 'name', 'common name']
+            ),
+            LiteralInput(
+                identifier='hazard',
+                title='Name of the hazard',
+                abstract='String identifying the hazard under consideration, should be one in the list of drought, erosion, fire, flood, heatwave.',
+                data_type='string',
+				keywords=['drought', 'erosion', 'fire', 'flood', 'heat']
+            )]
 
 		# Output [in json format]
 		outputs = [ComplexOutput('output_json',
-		                         'LARE Landscape characterisation',
+		                         'LARE hazard mitigation',
 		                         supported_formats=[Format('application/json')])]
 
-		super(WpsLareLandscape, self).__init__(
+		super(WpsLareHazard, self).__init__(
 		    self._handler,
-		    identifier='lare_landscape',
+		    identifier='lare_hazard',
 		    version='1.0',
-		    title='Characterise landscape based on biophysical data',
+		    title='Characterise landscape based on biophysical data for a specified hazard',
 		    abstract='This process calls creates datalayers, based on biophysical data, that identify the landscape. ' \
 			         'The process is carried out for a selected region',
 		    profile='',
-		    metadata=[Metadata('WpsLareLandscape'), Metadata('lare/landscape')],
+		    metadata=[Metadata('WpsLareHazard'), Metadata('lare/hazard')],
 		    inputs=inputs,
 		    outputs=outputs,
 		    store_supported=False,
@@ -75,10 +88,11 @@ class WpsLareLandscape(Process):
 
 		try:		
 			# call mainhandler
-			nutsname = request.inputs['nutsname'][0].data
+			nutsname = request.inputs.get('nutsname', [])[0].data
+			hazard   = request.inputs.get('hazard', [])[0].data
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			message = mainhandler(nutsname)
+			message = mainhandler_hazard(nutsname, hazard)
 			print(f'message {message}')
 			data = json.load(message)
 			response.outputs['output_json'].data = json.dumps(data, indent=4, sort_keys=True)

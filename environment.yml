@@ -17,3 +17,4 @@ dependencies:
   - shapely
   - scipy
   - geoserver-restconfig
+  - xarray

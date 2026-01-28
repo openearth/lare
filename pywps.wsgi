@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2025 Deltares
+#   Copyright (C) 2026 Deltares
 #     Ioanna Micha
 #     ioanna.micha@deltares.nl
 #     Gerrit Hendriksen
@@ -39,12 +39,14 @@ import logging
 
 # from flask_cors import CORS
 
-# RI2DE
+# LARE
 from processes.wps_lare_landscape import WpsLareLandscape
+from processes.wps_lare_hazard import WpsLareHazard
 
-# RI2DE processes
+# LARE processes
 processes = [
-    WpsLareLandscape()]
+    WpsLareLandscape(),
+    WpsLareHazard(),]
 
 # Description used in template
 process_descriptor = {}

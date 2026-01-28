@@ -32,8 +32,9 @@ from owslib.wcs import WebCoverageService
 from owslib.util import Authentication
 from shapely import wkt
 import rasterio
+from rasterio.io import MemoryFile
 from rasterio.shutil import copy as rio_copy
-from rasterio.enums import Resampling
+
 
 import logging
 
@@ -69,8 +70,14 @@ class WCS:
         self.width = self.cx
         self.height = self.cy
 
-    def getw(self, fn):
-        """Downloads raster and returns filename of written GEOTIFF in the tmp dir."""
+
+    def getw(self, fn: str) -> str:
+        """
+        Downloads raster via WCS and writes a Cloud-Optimized GeoTIFF (COG) to `fn`.
+        Falls back to a plain GeoTIFF if COG creation fails. Returns `fn`.
+        Requires GDAL >= 3.1 with COG driver (you have 3.12.1).
+        """
+        # 1) Request the coverage (bytes/stream from WCS)
         gc = self.wcs.getCoverage(
             identifier=self.id,
             bbox=self.bbox,
@@ -79,37 +86,52 @@ class WCS:
             width=self.width,
             height=self.height,
         )
-        # in stead of writing a raster, switch to write to COG, hmm... this does not work
-        try:
-            with rasterio.open(gc.read()) as src:
-                # Create tiled + compressed base image
-                profile = src.profile.copy()
-                profile.update(
-                    tiled=True,
-                    blockxsize=512,
-                    blockysize=512,
-                    compress="deflate",
-                    predictor=2,
-                    BIGTIFF="IF_SAFER"
-                )
 
-                # Write temp intermediate file
-                with rasterio.open(fn, "w", **profile) as dst:
-                    for b in src.indexes:
-                        dst.write(src.read(b), b)
-                    
-                    # Create overviews
-                    factors = [2, 4, 8, 16, 32]
-                    dst.build_overviews(factors, Resampling.nearest)
-                    dst.update_tags(ns="rio_cogeo", resampling="nearest")
-            
-            logging.info(f'!--- succesfully create COG TIFF {fn}')
-        except:
-            f = open(fn, "wb")
-            f.write(gc.read())
-            f.close()
-            logging.info(f'!--- COG writing failed, switched to creating standard TIFF {fn}')
+        try:
+            # 2) Read the response as bytes once (for both main path and fallback)
+            data = gc.read() if hasattr(gc, "read") else gc
+            if not isinstance(data, (bytes, bytearray)):
+                # some WCS libs return file-like; ensure bytes
+                data = data.read()
+
+            # 3) Open the in-memory GeoTIFF with Rasterio
+            with MemoryFile(data) as mem:
+                with mem.open() as src:
+                    # Choose a good predictor based on data type:
+                    #   - 2 for integer data
+                    #   - 3 for floating-point (often better compression)
+                    first_dtype = src.dtypes[0]
+                    predictor = 3 if first_dtype.startswith("float") else 2
+
+                    # 4) Let GDAL's COG driver build overviews + layout properly
+                    #    (no intermediate temp file needed)
+                    rio_copy(
+                        src,
+                        fn,
+                        driver="COG",
+                        BLOCKSIZE=512,            # internal tiling (multiple of 16)
+                        COMPRESS="DEFLATE",       # lossless, widely used for COG
+                        PREDICTOR=predictor,      # 2=int; 3=float
+                        NUM_THREADS="ALL_CPUS",
+                        BIGTIFF="IF_SAFER",
+                        RESAMPLING="NEAREST",     # overview resampling; adjust if needed
+                        # LEVELS="AUTO",          # optional: let GDAL decide overview levels
+                        # COPY_SRC_OVERVIEWS="YES"  # only if you pre-built overviews
+                    )
+
+            logging.info(f"✔️ Successfully created COG: {fn}")
+
+        except Exception as e:
+            # 5) Fallback: write the raw response as a plain GeoTIFF
+            try:
+                with open(fn, "wb") as f:
+                    f.write(data)
+                logging.warning(f"⚠️ COG creation failed ({e}); wrote plain GeoTIFF to {fn}")
+            except Exception as e2:
+                logging.error(f"❌ Failed to write fallback GeoTIFF: {e2}")
+                raise
         return fn
+
 
     def getw_with_auth(self, fn):
         """Downloads raster and returns filename of written GEOTIFF in the tmp dir."""
