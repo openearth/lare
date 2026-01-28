@@ -42,6 +42,7 @@ from processes.utils import read_appyml, tempfile, load_reclass_topo, load_recla
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
+from processes.utils_geoserver import load2geoserver
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import wfs_filter
@@ -86,9 +87,9 @@ def lare_raster(gdf,crs=4258,layer=None):
         layer = appconfig['layers']['eunis']
         outfname = tempfile(tmpdir,'eunis_','.tif')        
     else:
-        print('layer not defined, stop the process')
+        logging.error(f"----!!! lare_raster could not be created for {layer}")
         return None
-    print(f'layer requested {layer} and to be produces {outfname}')
+    
     # create tuple object from extent
     # the dem is in 4258, so .... 
     gdf = gdf.to_crs(crs)
@@ -100,7 +101,7 @@ def lare_raster(gdf,crs=4258,layer=None):
         raster = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
         msg = f'successfully clipped {layer} and saved as {outfname}'
     except Exception as e:
-        msg = e
+        msg = f'clip not successful with following message {str(e)}'
     finally:
         print(msg)
     return outfname
@@ -112,27 +113,8 @@ def handler_eunis(gdf,hazard=None):
     outeunis = lare_raster(gdf, 3035, 'eunis')
     print(type(outeunis))
 
-
-def handler_clc(gdf,hazard=None):
-    msg = None
-
-    # clip Corine Landcover layer from OGC service
-    outclc = lare_raster(gdf, 3035, 'clc')
-    print(outclc)
-
-    # load raster into array
-    with rasterio.open(outclc) as src:
-        clc_array = src.read(1)
-        meta = src.meta
-        src_nodata = src.nodata
-
-    # add additional metadata items in order to write COG
-
-    # derive hazards using csv from
-    # acquire base data from app.yml
-    appconfig = read_appyml('app.yml')
-    hazards = appconfig['hazards']['clc_scores']
-    for hazard in hazards.keys():
+def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
+        
         clc_lut = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['hazards']['clc_scores'][hazard]))
         print(clc_lut)
 
@@ -174,12 +156,39 @@ def handler_clc(gdf,hazard=None):
 
             # Make sure metadata reflects overviews
             dst.update_tags(ns='rio_overview', resampling='nearest')
+        return clc_hazard
 
-        # meta.update(dtype=dt,nodata=nodata_cast)
-        # with rasterio.open(clc_hazard, 'w', **meta) as dst:
-        #     dst.write(clc_archetype_arr, 1)
 
-        logging.info(f'! -- Succesfully written landschape archetype data {clc_hazard}')
+def handler_clc(gdf,hazard=None):
+    msg = None
+
+    # clip Corine Landcover layer from OGC service
+    outclc = lare_raster(gdf, 3035, 'clc')
+
+    # load raster into array
+    with rasterio.open(outclc) as src:
+        clc_array = src.read(1)
+        meta = src.meta
+        src_nodata = src.nodata
+
+    # derive hazards using csv from
+    # acquire base data from app.yml
+    appconfig = read_appyml('app.yml')
+    hazards = appconfig['hazards']['clc_scores']
+    # add the hazards to a list
+    lsthazards = []
+    if hazard == None:
+        # loop over all the hazards in hazards
+        for hazard in hazards.keys():
+            clc_hazard = classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta)
+            lsthazards.append(clc_hazard)
+            logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
+    else:
+        clc_hazard = classifyraster(appconfig, hazard,clc_array, src_nodata, outclc, meta)
+        lsthazards.append(clc_hazard)
+        logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
+    
+    load2geoserver(lsthazards)
 
     return
 
@@ -264,10 +273,9 @@ def mainhandler_hazard(name, hazard):
     msg = None
 
     # step 1 retrieve GeoDataFrame from WFS
-    logging.info("----!!! Derive GeodataFram using: {}".format(name))
+    logging.info("----!!! Derived GeodataFram for region: {}".format(name))
     
     try:
-        print('in try with name',name)
         gdf = clipfromwfs_cql(name,'app.yml')
         msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
         print('in try with name',msg)

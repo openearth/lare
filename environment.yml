@@ -16,5 +16,5 @@ dependencies:
   - geojson
   - shapely
   - scipy
-  - geoserver-restconfig
+  - geoserver-rest
   - xarray

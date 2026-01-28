@@ -38,6 +38,9 @@ import json
 import pandas as pd
 import configparser
 import yaml
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Get a unique temporary file
 def tempfile(tempdir, typen, extension):
@@ -96,9 +99,10 @@ def read_appyml(fn='app.yml'):
 	if not os.path.isfile(fn):
 		fn = os.path.join(os.path.dirname(os.path.abspath(__file__)),'app.yml')
 		if not os.path.isfile(fn):
-			print('no app.yml found')
+			logging.info('!-- read_appyml - no app.yml found')
+			return None
 		else:
-			print(fn)
+			logging.info(f'!-- read_appyml - {fn} found')
 			with open(fn, "r") as f:
 				return yaml.safe_load(f)
 	else:

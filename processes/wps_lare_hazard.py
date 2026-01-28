@@ -27,12 +27,17 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname=Menorca;hazard=fire
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_landscape&datainputs=nutsname={"nutsname":'Splitsko-dalmatinska županija'}
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname='Menorca';hazard=fire
+# 
+# https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname=Menorca;hazard=fire
 
 # other
 import os
 import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # PyWPS
 from pywps import Process, Format, FORMATS
@@ -42,6 +47,8 @@ from pywps.app.Common import Metadata
 
 # local
 from .lare_landscape import mainhandler_hazard
+
+
 
 class WpsLareHazard(Process):
 
@@ -90,6 +97,7 @@ class WpsLareHazard(Process):
 			# call mainhandler
 			nutsname = request.inputs.get('nutsname', [])[0].data
 			hazard   = request.inputs.get('hazard', [])[0].data
+			logging.info(f'!-- wps lare hazard for nuts_name {nutsname} and hazard {hazard}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
 			message = mainhandler_hazard(nutsname, hazard)

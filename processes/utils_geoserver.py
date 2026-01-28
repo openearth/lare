@@ -29,26 +29,167 @@
 # $Keywords: $
 
 import os
-from geoserver.catalog import Catalog
+
+# conda packages
+from geo.Geoserver import Geoserver, GeoserverException
+
+# local packages
+from processes.utils import read_appyml
+
+import logging
+LOGGER= logging.getLogger("PYWPS")
+
+
+def get_or_create_workspace(geo, aws):
+    """Checks if a workspace exists, if not creates it and returns a workspace object
+
+    Args:
+        geo (object): the geoserver 
+        aws (string): workspace name
+
+    Returns:
+        object: geo workspace object
+    """
+    try:
+        ws = geo.get_workspace(workspace=aws)
+        if ws is None:
+            ws = geo.create_workspace(workspace=aws)
+            print(f"Workspace '{aws}' created")
+        else:
+            print(f"Workspace '{aws}' already exists")
+        return ws
+    except GeoserverException as ge:
+        logging.error(f"GeoserverException: {ge}")
+        ws = geo.create_workspace(workspace=aws)
+        logging.info(f"Workspace '{aws}' created")
+        return ws
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return None
 
 # Upload raster file to GeoServer
-def geoserver_upload_gtif(cf, layername, gtifpath, sld_style='ri2de', workspace='TEMP'):
-    
-    # Connect and get workspace
-    cat = Catalog(cf.get('GeoServer', 'rest_url'), username=cf.get('GeoServer', 'user'), password=cf.get('GeoServer', 'pass'))
-    ws = cat.get_workspace(workspace)
+def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
+    """Load gtif data into geoserver
 
-    # Create store
-    ft = cat.create_coveragestore(layername, workspace=ws, data=gtifpath)
+    Args:
+        cf (configparser obj)    : configparser object of the contents of a configuration file
+        lstgtif (list)           : a list with gtif paths (incl. filenames)
+        sld_style (str, optional): style name (shoul be there in geoserver) Defaults to 'brl'.
+        aws (str, optional)      : Workspace, if give then will be created, otherwise defaults to 'abs'.
 
-    # Associate SLD styling to it
-    layer = cat.get_layer(layername)
-    layer.default_style = cat.get_style(sld_style) 
-    cat.save(layer)
+    Returns:
+        List                     : of wmslayers
+    """
 
-    # Return wms url
-    wmslay = workspace+':'+layername    
-    return wmslay
+    appconfig = read_appyml('app.yml')
+
+    # we might want to use styles
+    dctstyles = {}
+    dctstyles['fire']    = ("Fire mitigation",'fire')
+    dctstyles['heat']    = ("Heatwave mitigation",'heat')
+
+    # Initialize the geoserver
+    try:
+        geo = Geoserver(
+            appconfig['sdi']['geoserver']['url'],
+            username=appconfig['sdi']['geoserver']['user'],
+            password=appconfig['sdi']['geoserver']['password'],
+        )
+        # geo = Geoserver(
+        #     cf.get("GeoServer", "rest_url").replace("/rest", ""),
+        #     username=cf.get("GeoServer", "user"),
+        #     password=cf.get("GeoServer", "pass"),
+        # )
+        logging.info("!-- load2geoserver: connection to geoserver sussesfull")
+    except Exception as e:
+        logging.info(f"!-- load2geoserver: unable to connect to geoserver {str(e)}")
+
+    # fetch workspaces and check if workspace aws is already setup in if necessary create it
+    geo.get_workspaces()
+    get_or_create_workspace(geo, aws)
+
+    # create emtpy list to harvest the wmslayers
+    wmslayers = []
+
+    for gtif in lstgtif:
+        lname = (
+            os.path.basename(gtif).replace(".tif", "")
+        )
+
+        style_key = "_".join(lname.split('_')[1])
+        sld_style = dctstyles.get(style_key, [None])[1]
+        logging.info('GTIF, set style for layer', os.path.normpath(gtif), lname,sld_style)
+        # For uploading raster data to the geoserver
+        try:
+            geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
+            geo.publish_style(layer_name=lname, style_name=sld_style, workspace=aws)
+            wmslay = f"{aws}:{lname}"
+            wmslayers.append(wmslay)
+            print(f"Coverage store created and style assigned for {lname}")
+            sld_style = dctstyles.get(style_key, [None])[1]
+            geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
+            geo.publish_style(layer_name=lname, style_name=sld_style, workspace=aws)
+            wmslay = f"{aws}:{lname}"
+            wmslayers.append(wmslay)
+            logging.info(f"Coverage store created and style {sld_style} assigned for {lname}")
+        except Exception as e:
+            logging.info(f"failed to create store for {lname},{str(e)}")
+
+        print(wmslay)
+    #print("de wms layers", wmslayers)
+    return wmslayers
+
+
+def cleanup_workspace_geoserver(rest_url, username, password, workspace):
+    """Deletes all layers and coverage stores in a single workspace using geo.Geoserver and also removes the data from
+       the tmp folder
+
+    Args:
+        rest_url (string): url that is used to access the geoserver (wms_url in this case)
+        username (string): username to enter geoserver
+        password (string): password to enter geoserver 
+        workspace (string): workspace to remove
+    """
+    # The geoserver-rest package requires the url that normally is used to access the geoserver (so not the thech url) 
+    # and without the wms
+    if (rest_url.endswith("/wms")):
+        rest_url = rest_url.replace("/wms", "")
+
+    try:
+        geo = Geoserver(rest_url, username=username, password=password)
+    except GeoserverException as e:
+        print(f'Geoserver exception occured: {e}' )
+    except Exception as e:
+        print(f'some general execpetion while accessing geoserver: {e}')
+
+    print(f"geoserver version: {geo.get_version()}")
+    print(f"Cleaning workspace: {workspace}")
+
+    # Try to get and delete layers
+    try:
+        layers = geo.get_layers(workspace=workspace)["layers"]
+        if not layers:
+            print(f" → No layers returned for workspace '{workspace}' (may be empty or inaccessible).")
+        else:
+            for layer in layers["layer"]:
+                lname = layer["name"]
+                print(f" → Deleting layer: {lname}")
+                geo.delete_layer(layer_name=lname, workspace=workspace)
+    except Exception as e:
+        print(f" ✖ Failed to retrieve or delete layers in workspace '{workspace}': {e}")
+
+    # Try to get and delete coverage stores
+    try:
+        stores = geo.get_coveragestores(workspace=workspace)["coverageStores"]
+        if not stores:
+            print(f" → No coverage stores returned for workspace '{workspace}' (may be empty or inaccessible).")
+        else:
+            for store in stores["coverageStore"]:
+                store_name = store["name"]
+                print(f" → Deleting coverage store: {store_name}")
+                geo.delete_coveragestore(coveragestore_name=store_name, workspace=workspace)
+    except Exception as e:
+        print(f" ✖ Failed to retrieve or delete coverage stores in workspace '{workspace}': {e}")
 
 # Cleanup temporary layers and stores
 def cleanup_temp(cf, workspace='TEMP'):

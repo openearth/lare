@@ -122,6 +122,7 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
         Geodataframe : Geodataframe corresponding with the filtered feature based on filtervalue
     """
     cfg = read_appyml(app_cfg_path)
+
     wfs_cfg = cfg["ows"]["wfs_nuts"]
     if url == None:
         url = wfs_cfg["url"]                       # url of the geoserver https://desirmed.openearth.eu/geoserver/ows
@@ -138,9 +139,13 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
         "outputFormat": "application/json",
         "cql_filter": f"{name_field} = {filtervalue}"  # exact match
     }
-    logging.info('!--- filtering wfs with parameters',typename,name_field)
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    gdf = gpd.read_file(BytesIO(r.content))
     
+    try:
+        r = requests.get(url, params=params)
+        r.raise_for_status()
+        gdf = gpd.read_file(BytesIO(r.content))
+        logging.info(f'!-- succesfull filtering wfs with parameters for layer {typename} and colum/value {name_field} = {filtervalue}')
+    except Exception as e:
+        logging.info(f'!-- filtering wfs failed, setting geodataframe to none {str(e)}')
+        gdf = None    
     return gdf
