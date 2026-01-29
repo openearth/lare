@@ -54,9 +54,9 @@ def get_or_create_workspace(geo, aws):
         ws = geo.get_workspace(workspace=aws)
         if ws is None:
             ws = geo.create_workspace(workspace=aws)
-            print(f"Workspace '{aws}' created")
+            logging.info(f"Workspace '{aws}' created")
         else:
-            print(f"Workspace '{aws}' already exists")
+            logging.info(f"Workspace '{aws}' already exists")
         return ws
     except GeoserverException as ge:
         logging.error(f"GeoserverException: {ge}")
@@ -95,30 +95,30 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
             username=appconfig['sdi']['geoserver']['user'],
             password=appconfig['sdi']['geoserver']['password'],
         )
-        # geo = Geoserver(
-        #     cf.get("GeoServer", "rest_url").replace("/rest", ""),
-        #     username=cf.get("GeoServer", "user"),
-        #     password=cf.get("GeoServer", "pass"),
-        # )
         logging.info("!-- load2geoserver: connection to geoserver sussesfull")
     except Exception as e:
         logging.info(f"!-- load2geoserver: unable to connect to geoserver {str(e)}")
 
     # fetch workspaces and check if workspace aws is already setup in if necessary create it
-    geo.get_workspaces()
-    get_or_create_workspace(geo, aws)
+    try:
+        geo.get_workspaces()
+        get_or_create_workspace(geo, aws)
+        logging.info(f"!-- Workspace exists: {aws}")
+    except GeoserverException as ge:
+        logging.error(f"!-- Workspace GeoserverException: {ge}")
+    except Exception as e:
+        logging.error(f"!-- Workspace general exception: {e}")
 
     # create emtpy list to harvest the wmslayers
     wmslayers = []
 
     for gtif in lstgtif:
-        lname = (
-            os.path.basename(gtif).replace(".tif", "")
-        )
-
-        style_key = "_".join(lname.split('_')[1])
+        lname = os.path.basename(gtif).replace(".tif", "")
+        
+        logging.info(f'!-- create store and load tif: {gtif}')
+        style_key = lname.split('_')[1]
         sld_style = dctstyles.get(style_key, [None])[1]
-        logging.info('GTIF, set style for layer', os.path.normpath(gtif), lname,sld_style)
+        logging.info(f'GTIF, set style for layer {os.path.normpath(gtif)}, {lname},{sld_style}')
         # For uploading raster data to the geoserver
         try:
             geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
@@ -132,8 +132,10 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
             wmslay = f"{aws}:{lname}"
             wmslayers.append(wmslay)
             logging.info(f"Coverage store created and style {sld_style} assigned for {lname}")
+        except GeoserverException as ge:
+            logging.error(f"!-- Store and layer creation GeoserverException: {ge}")            
         except Exception as e:
-            logging.info(f"failed to create store for {lname},{str(e)}")
+            logging.info(f"!-- failed Store and layer creation  for {lname},{str(e)}")
 
         print(wmslay)
     #print("de wms layers", wmslayers)
@@ -191,33 +193,16 @@ def cleanup_workspace_geoserver(rest_url, username, password, workspace):
     except Exception as e:
         print(f" ✖ Failed to retrieve or delete coverage stores in workspace '{workspace}': {e}")
 
-# Cleanup temporary layers and stores
-def cleanup_temp(cf, workspace='TEMP'):
+def test():
+    from utils import read_appyml
+    # clean the geoseover
+    appconfig = read_appyml('app.yml')
 
-    # Connect and get workspace
-    cat = Catalog(cf.get('GeoServer', 'rest_url'), username=cf.get('GeoServer', 'user'), password=cf.get('GeoServer', 'pass'))
+    rest_url = appconfig['sdi']['geoserver']['url']
+    username=appconfig['sdi']['geoserver']['user']
+    password=appconfig['sdi']['geoserver']['password']
+    workspace = 'tmp'
+    cleanup_workspace_geoserver(rest_url, username, password, workspace)
+
+
     
-    # Layers
-    layers = cat.get_layers()
-    for l in layers:
-        if (workspace+':') in l.name:
-            print('Deleting layer = {}'.format(l.name))
-            try:
-                cat.delete(l)
-                print('OK')
-            except:
-                print('ERR')
-    cat.reload()
-    
-    # Stores
-    stores = cat.get_stores()        
-    print('-------------------')
-    for s in stores:
-        if workspace in s.workspace.name:
-            print('Deleting store = {}'.format(s.name))
-            try:
-                cat.delete(s)
-                print('OK')
-            except:
-                print('ERR')
-    cat.reload()

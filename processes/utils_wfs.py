@@ -44,8 +44,6 @@ from processes.utils import read_appyml
 logging.basicConfig(level=logging.INFO)
 
 # from utils import read_appyml
-
-
 def wfs_filter(app_cfg_path="app.yml",
                         name_contains=None,
                         crs='4326'):
