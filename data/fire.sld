@@ -5,8 +5,8 @@
       <sld:FeatureTypeConstraint/>
     </sld:LayerFeatureConstraints>
     <sld:UserStyle>
-      <sld:Name>heat</sld:Name>
-      <sld:Title>heat mitigation score</sld:Title>
+      <sld:Name>fire</sld:Name>
+      <sld:Title>Fire mitigation score</sld:Title>
       <sld:FeatureTypeStyle>
         <sld:Rule>
           <sld:RasterSymbolizer>
@@ -16,7 +16,7 @@
               </sld:GrayChannel>
             </sld:ChannelSelection>
             <sld:ColorMap type="ramp">
-              <sld:ColorMapEntry label="Heat Mitigation score" quantity="-9999" color="#fff5f0" opacity="0.01"/>
+              <sld:ColorMapEntry label="Fire Mitigation score" quantity="-9999" color="#fff5f0" opacity="0.01"/>
               <sld:ColorMapEntry label="0.0000" quantity="0" color="#fff5f0"/>
               <sld:ColorMapEntry label="0.1000" quantity="0.10000000000000001" color="#fee5d9"/>
               <sld:ColorMapEntry label="0.2000" quantity="0.20000000000000001" color="#fdccb8"/>
