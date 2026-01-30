@@ -706,7 +706,7 @@ def reclassify_fast(array, reclass_dict, dtype='int32', nodata_out=None, origina
     if array is None or reclass_dict is None:
         print('Reclassification skipped: missing array or dictionary.')
         return None
-    print('dtype',dtype)
+    logging.info(f'assigned dtype {dtype}')
     np_dtype = np.dtype(dtype)
     if nodata_out is None:
         nodata_out = default_nodata(np_dtype)

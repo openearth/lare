@@ -100,13 +100,9 @@ class WpsLareHazard(Process):
 			logging.info(f'!-- wps lare hazard for nuts_name {nutsname} and hazard {hazard}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			message = mainhandler_hazard(nutsname, hazard)
-			print(f'message {message}')
-			data = json.load(message)
-			response.outputs['output_json'].data = json.dumps(data, indent=4, sort_keys=True)
-
+			res = mainhandler_hazard(nutsname, hazard)
+			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }
 			response.outputs['output_json'].data = json.dumps(res)
-
 		return response

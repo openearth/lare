@@ -59,7 +59,7 @@ def get_or_create_workspace(geo, aws):
             logging.info(f"Workspace '{aws}' already exists")
         return ws
     except GeoserverException as ge:
-        logging.error(f"GeoserverException: {ge}")
+        logging.error(f"GeoserverException error, attempt to create workspace again: {ge}")
         ws = geo.create_workspace(workspace=aws)
         logging.info(f"Workspace '{aws}' created")
         return ws
@@ -97,47 +97,38 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
         )
         logging.info("!-- load2geoserver: connection to geoserver sussesfull")
     except Exception as e:
-        logging.info(f"!-- load2geoserver: unable to connect to geoserver {str(e)}")
+        logging.error(f"!-- load2geoserver: unable to connect to geoserver {str(e)}")
 
     # fetch workspaces and check if workspace aws is already setup in if necessary create it
     try:
         geo.get_workspaces()
         get_or_create_workspace(geo, aws)
-        logging.info(f"!-- Workspace exists: {aws}")
+        logging.info(f"!-- load2geoserver: Workspace exists: {aws}")
     except GeoserverException as ge:
-        logging.error(f"!-- Workspace GeoserverException: {ge}")
+        logging.error(f"!-- load2geoserver: Workspace GeoserverException: {ge}")
     except Exception as e:
-        logging.error(f"!-- Workspace general exception: {e}")
+        logging.error(f"!-- load2geoserver: Workspace general exception: {e}")
 
     # create emtpy list to harvest the wmslayers
     wmslayers = []
 
     for gtif in lstgtif:
         lname = os.path.basename(gtif).replace(".tif", "")
-        
-        logging.info(f'!-- create store and load tif: {gtif}')
         style_key = lname.split('_')[1]
         sld_style = dctstyles.get(style_key, [None])[1]
-        logging.info(f'GTIF, set style for layer {os.path.normpath(gtif)}, {lname},{sld_style}')
         # For uploading raster data to the geoserver
         try:
-            geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
-            geo.publish_style(layer_name=lname, style_name=sld_style, workspace=aws)
             wmslay = f"{aws}:{lname}"
             wmslayers.append(wmslay)
-            print(f"Coverage store created and style assigned for {lname}")
             sld_style = dctstyles.get(style_key, [None])[1]
             geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
             geo.publish_style(layer_name=lname, style_name=sld_style, workspace=aws)
-            wmslay = f"{aws}:{lname}"
-            wmslayers.append(wmslay)
-            logging.info(f"Coverage store created and style {sld_style} assigned for {lname}")
+            logging.info(f"!-- load2geoserver: Coverage store created and style {sld_style} assigned for {lname}")
         except GeoserverException as ge:
-            logging.error(f"!-- Store and layer creation GeoserverException: {ge}")            
+            logging.error(f"!-- load2geoserver: Store and layer creation GeoserverException: {ge}")            
         except Exception as e:
-            logging.info(f"!-- failed Store and layer creation  for {lname},{str(e)}")
+            logging.info(f"!-- load2geoserver: Store and layer creation failed for {gtif},{str(e)}")
 
-        print(wmslay)
     #print("de wms layers", wmslayers)
     return wmslayers
 
@@ -193,7 +184,7 @@ def cleanup_workspace_geoserver(rest_url, username, password, workspace):
     except Exception as e:
         print(f" ✖ Failed to retrieve or delete coverage stores in workspace '{workspace}': {e}")
 
-def test():
+def clean_geoserver():
     from utils import read_appyml
     # clean the geoseover
     appconfig = read_appyml('app.yml')
@@ -202,7 +193,13 @@ def test():
     username=appconfig['sdi']['geoserver']['user']
     password=appconfig['sdi']['geoserver']['password']
     workspace = 'tmp'
+
     cleanup_workspace_geoserver(rest_url, username, password, workspace)
+    
+    #get tmp dir and clean also
+    tmpdir = appconfig['sid']['tmp']['tmpdir']
+    # call the utils.clean_tmp function, but it should be adjusted to only clean tif and xml files.
+
 
 
     

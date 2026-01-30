@@ -33,6 +33,7 @@
 import time
 import os
 import pathlib
+import shutil
 import numpy as np
 import json
 import pandas as pd
@@ -113,18 +114,19 @@ def read_appyml(fn='app.yml'):
 # 3. Load reclassification table
 # -----------------------------
 def load_reclass_table(csv_path, lusecol=None, reclasscol=None):
-    if not os.path.isfile(csv_path):
-        print(f'File {csv_path} not found')
-        return None
-    try:
-        df = pd.read_csv(csv_path, delimiter=';')
-    except Exception as e:
-        print(f'Failed to read reclassification CSV {csv_path}:', e)
-        return None
-    if lusecol not in df.columns or reclasscol not in df.columns:
-        print(f'Columns "{lusecol}" and/or "{reclasscol}" not found in {csv_path}')
-        return None
-    return dict(zip(df[lusecol], df[reclasscol]))
+	if not os.path.isfile(csv_path):
+		logging.error(f'File {csv_path} not found')
+		return None
+	try:
+		df = pd.read_csv(csv_path, delimiter=';')
+		logging.info(f'!-- lut loading successful, {csv_path}')
+	except Exception as e:
+		logging.error(f'Failed to read reclassification CSV {csv_path}:', e)
+		return None
+	if lusecol not in df.columns or reclasscol not in df.columns:
+		logging.error(f'Columns "{lusecol}" and/or "{reclasscol}" not found in {csv_path}')
+		return None
+	return dict(zip(df[lusecol], df[reclasscol]))
 
 def load_reclass_topo(csv_scores):
     csvpath = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', csv_scores))
@@ -187,3 +189,26 @@ def compute_nodata_cast(src_nodata, target_dt):
 			f"[{info.min}, {info.max}]"
 		)
 	return target_dt.type(src_nodata)
+
+def cleanup_pywps_tmp(tmp_dir):
+	"""Cleans data from temporary directory
+
+	Args:
+		tmp_dir (string): path to temporary directory
+	"""
+	if not os.path.exists(tmp_dir):
+		print(f"PyWPS tmp directory not found: {tmp_dir}")
+		return
+
+	print(f"\n▶ Cleaning up PyWPS temporary files in: {tmp_dir}")
+	for entry in os.listdir(tmp_dir):
+		path = os.path.join(tmp_dir, entry)
+		try:
+			if os.path.isfile(path) or os.path.islink(path):
+				os.remove(path)
+				print(f"  Deleted file: {entry}")
+			elif os.path.isdir(path):
+				shutil.rmtree(path)
+				print(f"  Deleted directory: {entry}")
+		except Exception as e:
+			print(f"  Failed to delete {entry}: {e}")

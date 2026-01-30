@@ -29,6 +29,7 @@
 import os
 import json
 import yaml
+from collections import defaultdict
 
 # imports
 import numpy as np
@@ -116,10 +117,13 @@ def handler_eunis(gdf,hazard=None):
 def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
         
         clc_lut = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['hazards']['clc_scores'][hazard]))
-        print(clc_lut)
 
         #load_reclass_table 
         class_dct = load_reclass_table(clc_lut,'clc','score')
+        if class_dct is None:
+            logging.error(f'!-- classification directionary not found {clc_lut}')
+            return None
+
         # find out what the type is of the value in the csv
         first_key = next(iter(class_dct))
         value = class_dct[first_key]
@@ -127,6 +131,7 @@ def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
 
         # compute nodata_cast AFTER dt is known
         nodata_cast = compute_nodata_cast(src_nodata, dt)
+        logging.info(f'!-- classify with nodata {nodata_cast}, {src_nodata}, {dt}')
 
         # classify the arry witht he dictionary and the opened clc array
         clc_archetype_arr = reclassify_fast(clc_array,class_dct,dtype=str(dt))
@@ -138,12 +143,12 @@ def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
         meta.update(
             dtype=dt,
             nodata=nodata_cast,
-            tiled=True,                     # COG requirement
+            tiled=False,                     # COG requirement
             blockxsize=512,                 # typical COG block size
             blockysize=512,
-            compress='deflate',             # common for COGs
-            predictor=2,                    # improves compression for int/float
-            BIGTIFF='IF_SAFER'
+            compress='LZW',             # common for COGs
+            # predictor=2,                    # improves compression for int/float
+            BIGTIFF='IF_NEEDED'
         )
 
         # Write main image
@@ -160,7 +165,19 @@ def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
 
 
 def handler_clc(gdf,hazard=None):
-    msg = None
+    """Based on the geodataframe and the specified hazard at least 2 rasters will be created. 
+       1. clip of CLC from WCS
+       2. either 1 (if specified) either several (if hazard = None) will be created 
+    
+    Args:
+        gdf (geodatafram): geodatafram of clipped WFS (for now nuts region, but can be any GDF)
+        hazard (string, optional): Hazard specified, this needs to be in the app.yml (scores hazards section in list). 
+                                   Defaults to None. In that case the application will loop over all hazards
+
+    Returns:
+        wmslay (list): returns a list of wmslayers
+    """
+    wmslay = None
 
     # clip Corine Landcover layer from OGC service
     outclc = lare_raster(gdf, 3035, 'clc')
@@ -188,9 +205,8 @@ def handler_clc(gdf,hazard=None):
         lsthazards.append(clc_hazard)
         logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
     
-    load2geoserver(lsthazards)
-
-    return
+    wmslay = load2geoserver(lsthazards)
+    return wmslay
 
 def handler_dem(gdf):
     msg = None
@@ -269,22 +285,62 @@ def mainhandler(name):
 
 
 def mainhandler_hazard(name, hazard):
-    print('in main handler',name, hazard)    
+        
     msg = None
+
+    # check if hazard provided is listed in the list of hazards
+    appconfig = read_appyml('app.yml')    
+    jsonhazard = appconfig['hazards']['hazard']
+    wmsurl = appconfig['sdi']['geoserver']['url']
+    try:
+        if hazard not in jsonhazard.keys():
+            logging.error(f"----!!! Hazard: {hazard} not in list of defined hazards, return None")
+            return json.dumps('Unable to find specified hazard')
+    except Exception as e:
+        logging.error(f"----!!! Hazard: something else goes wrong {str(e)}")
+        return json.dumps('Unspecified error while matching provided hazard {hazard}')
 
     # step 1 retrieve GeoDataFrame from WFS
     logging.info("----!!! Derived GeodataFram for region: {}".format(name))
     
     try:
         gdf = clipfromwfs_cql(name,'app.yml')
-        msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
-        print('in try with name',msg)
     except Exception as e:
-        msg = f'nothing found for {name}, {e}'
-        return None
+        msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
+        return json.dumps(msg)
     print(msg)
     
-    print('start the handler_clc')
-    msg = handler_clc(gdf,hazard=hazard)
-    print(msg)
+    # call the handler to do the magic
+    try:
+        res = []
+        wmslay = handler_clc(gdf, hazard=hazard)
+        res_dict = defaultdict(list)  # <-- cleaner
 
+        for lname in wmslay:
+            parts = lname.split('_')
+            if len(parts) < 2:
+                raise ValueError(f"Layer name '{lname}' has no hazard part")
+
+            hzname = parts[1]
+            hztitle = jsonhazard.get(hzname, hzname)
+
+            res_dict[hzname].append({
+                "name": hztitle,
+                "layer": lname,
+                "url": wmsurl
+            })
+
+        # Convert to desired structure
+        for hz, entries in res_dict.items():
+            res.append({
+                "folder": "Mitigation data",
+                "contents": entries
+            })
+
+        print(res_dict)
+        print(res)
+        return json.dumps(res, indent=2)
+
+    except Exception as e:
+        msg = f"!-- Main handler hazard: Creation of rasters with clip for name {name} failed with error: {str(e)}"
+        return json.dumps(msg)
