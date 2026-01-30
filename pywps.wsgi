@@ -35,18 +35,20 @@ import flask
 
 import pywps
 from pywps.app.Service import Service
-import logging
 
 # from flask_cors import CORS
 
 # LARE
 from processes.wps_lare_landscape import WpsLareLandscape
 from processes.wps_lare_hazard import WpsLareHazard
+from processes.wps_lare_uom import WpsLareUoM
 
 # LARE processes
 processes = [
     WpsLareLandscape(),
-    WpsLareHazard(),]
+    WpsLareHazard(),
+    WpsLareUoM(),
+    ]
 
 # Description used in template
 process_descriptor = {}
