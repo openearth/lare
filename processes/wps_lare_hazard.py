@@ -30,7 +30,7 @@
 # http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname='Menorca';hazard=fire
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
-# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname=Menorca;hazard=fire
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname='Menorca';hazard=fire
 
 # other
 import os
