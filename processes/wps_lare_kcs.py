@@ -27,7 +27,7 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=name='Menorca';kcs=socio_economic:pop2020;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
 # https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname='Menorca';hazard=fire
@@ -46,40 +46,54 @@ from pywps.inout.outputs import ComplexOutput
 from pywps.app.Common import Metadata
 
 # local
-from .lare_uom import mainhandler_uom
+from .lare_uomkcs import mainhandler_uomkcs
 
-class WpsLareUoM(Process):
+class WpsLareKCS(Process):
 
 	def __init__(self):
 		# Input [in json format ]
 		inputs = [
 			LiteralInput(
-                identifier='nutsname',
-                title='Name of the level 3 nuts regions',
-                abstract='String identifying the nutsregion, level 3',
+                identifier='name',
+                title='Name of nuts region',
+                abstract='String identifying the nuts region',
                 data_type='string',
-                keywords=['nuts region', 'name', 'common name']
+                keywords=['nuts', 'region']
+            ),
+			LiteralInput(
+                identifier='kcs',
+                title='Key Community System of preference',
+                abstract='String identifying the Key Community System',
+                data_type='string',
+                keywords=['KCS', 'Key Community System', 'population','schools','elderlyhomes', 'hospitals','roads']
             ),
             LiteralInput(
-                identifier='uomsize',
-                title='Size of the hexagons in square meters',
-                abstract='Integer size of the hexagon in square meters',
-                data_type='integer',
-				keywords=['uom','unit of measurement']
+                identifier='uom',
+                title='uom layer identifier',
+                abstract='Name of the hexagon file created in previous step',
+                data_type='string',
+				keywords=['uom','unit of measurement','layername']
+            ),
+			LiteralInput(
+                identifier='hazard',
+                title='Hazard layer identifier',
+                abstract='Name of the hazard layer created in previous step',
+                data_type='string',
+				keywords=['hazard','layername']
             )]
 
 		# Output [in json format]
-		outputs = [ComplexOutput('output_json',
-		                         'LARE UoM creation',
+		outputs = [ComplexOutput('uomkcs',
+		                         'LARE UoM with attributes of kcs',
 		                         supported_formats=[Format('application/json')])]
 
-		super(WpsLareUoM, self).__init__(
+		super(WpsLareKCS, self).__init__(
 		    self._handler,
-		    identifier='lare_uom',
+		    identifier='lare_kcs',
 		    version='1.0',
-		    title='Create Unit of Measurment layer',
-		    abstract='This process creates datalayers unit of measurement based on nutsname and area' \
-			         'The process is carried out for a selected region',
+		    title='Updates Unit of Measurment layer with KCS',
+		    abstract='This process updates datalayers of unit of measurement with KCS data (stats)' \
+			         'The process is carried out for the selected region, hazard',
 		    profile='',
 		    metadata=[Metadata('WpsLareUoM'), Metadata('lare/uom')],
 		    inputs=inputs,
@@ -93,12 +107,15 @@ class WpsLareUoM(Process):
 		logging.info(f'!-- wps lare before try')
 		try:		
 			# call mainhandler
-			nutsname = request.inputs.get('nutsname', [])[0].data
-			area     = request.inputs.get('uomsize', [])[0].data
-			logging.info(f'!-- wps lare hazard create uon for nuts_name {nutsname} with size {str(area)}')
+			name     = request.inputs.get('name', [])[0].data
+			kcs      = request.inputs.get('kcs', [])[0].data
+			uomlayer = request.inputs.get('uom', [])[0].data
+			hazardlr = request.inputs.get('hazard', [])[0].data
+			logging.info(f'!-- wps lare hazard create uon for nuts_name {name}')
+			logging.info(f'!-- wps lare hazard create uon for kcs {kcs}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			res = mainhandler_uom(nutsname, area)
+			res = mainhandler_uomkcs(name, kcs, uomlayer, hazardlr)
 			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }

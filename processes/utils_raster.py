@@ -38,7 +38,7 @@ from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import Affine
 
-from processes.utils import coerce_reclass_dict_to_array_dtype
+from processes.utils import coerce_reclass_dict_to_array_dtype, read_appyml, tempfile
 from processes.utils_wcs import LS
 from processes.utils_vector import *
 
@@ -697,6 +697,58 @@ def build_and_save_stack_from_list(
 
     return stack
 
+def lare_raster(gdf,crs=4258,layer='dem'):
+    """clips layer based on the name with the specified crs based on the passed dataframe 
+
+    Args:
+        gdf (Geodataframe): Geopandas dataframe with information an spatial selection (i.e. polygon ar any arbitrary closed surface)
+        crs (int, optional): Coordinate reference system, EPSG int representation. Defaults to 4258.
+        layer (str, optional): Layer of choice, this layer can be available in the config, otherwise should be a layer that can be found.
+
+    Returns:
+        String: name of the raster clipped from the data service
+    """
+    # acquire base data from app.yml
+    appconfig = read_appyml('app.yml')
+    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+
+    # get url and layer
+    base = appconfig['ows']['base']
+    if layer == 'dem':
+        layer = appconfig['layers']['dem']
+        outfname = tempfile(tmpdir,'dem_','.tif')
+    elif layer == 'clc':
+        layer = appconfig['layers']['clc']
+        outfname = tempfile(tmpdir,'clc_','.tif')
+    elif layer == 'eunis':
+        layer = appconfig['layers']['eunis']
+        outfname = tempfile(tmpdir,'eunis_','.tif')
+    elif layer not in ('dem','cls','eunis'):
+        # then it is considered a layer that is in the geoserver        
+        lname = layer.split(':')[1]
+        #layer = lname
+        outfname = tempfile(tmpdir,lname+'_','.tif')
+        logging.info(f"----!!! lare_raster: {layer}, {lname}, {outfname}")
+    else:
+        logging.error(f"----!!! lare_raster could not be created for {layer}")
+        return None
+    
+    # create tuple object from extent
+    # the dem is in 4258, so .... 
+    gdf = gdf.to_crs(crs)
+    xmin, ymin, xmax, ymax = gdf.total_bounds
+    logging.info("----!!! lare_raster: {}, {}".format(xmin,xmax))
+
+    raster = None
+    try:
+        raster = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
+        msg = f'successfully clipped {layer} and saved as {outfname}'
+    except Exception as e:
+        msg = f'clip not successful with following message {str(e)}'
+        outfname = None
+    finally:
+        print(msg)
+    return outfname
 
 
 # -----------------------------

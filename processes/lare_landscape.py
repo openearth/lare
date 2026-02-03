@@ -41,7 +41,7 @@ import logging
 # local
 from processes.utils import read_appyml, tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
 from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast
+from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
 from processes.utils_geoserver import load2geoserver
 
@@ -60,52 +60,6 @@ stepwise approach:
 4.a derive CLC from WCS
 4.b create varous hazard mitigation rasters from CLC and scores
 """
-
-def lare_raster(gdf,crs=4258,layer=None):
-    """_summary_
-
-    Args:
-        gdf (Geodataframe): Geopandas dataframe with information an spatial selection (i.e. polygon ar any arbitrary closed surface)
-        crs (int, optional): Coordinate reference system, EPSG int representation. Defaults to 4258.
-        layer (str, optional): Layer of choice, this layer can be available in the config, otherwise should be a layer that can be found.
-
-    Returns:
-        String: name of the raster clipped from the data service
-    """
-    # acquire base data from app.yml
-    appconfig = read_appyml('app.yml')
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
-
-    # get url and layer
-    base = appconfig['ows']['base']
-    if layer == 'dem':
-        layer = appconfig['layers']['dem']
-        outfname = tempfile(tmpdir,'dem_','.tif')
-    elif layer == 'clc':
-        layer = appconfig['layers']['clc']
-        outfname = tempfile(tmpdir,'clc_','.tif')
-    elif layer == 'eunis':
-        layer = appconfig['layers']['eunis']
-        outfname = tempfile(tmpdir,'eunis_','.tif')        
-    else:
-        logging.error(f"----!!! lare_raster could not be created for {layer}")
-        return None
-    
-    # create tuple object from extent
-    # the dem is in 4258, so .... 
-    gdf = gdf.to_crs(crs)
-    xmin, ymin, xmax, ymax = gdf.total_bounds
-    logging.info("----!!! lare_raster: {}, {}".format(xmin,xmax))
-
-    raster = None
-    try:
-        raster = cut_wcs(float(xmin), float(ymin), float(xmax), float(ymax), layer, base, outfname, crs=crs, all_box=True)
-        msg = f'successfully clipped {layer} and saved as {outfname}'
-    except Exception as e:
-        msg = f'clip not successful with following message {str(e)}'
-    finally:
-        print(msg)
-    return outfname
 
 def handler_eunis(gdf,hazard=None):
     msg = None
@@ -253,6 +207,15 @@ def handler_dem(gdf):
     return msg
 
 def mainhandler(name):
+    """Based on the given name (nuts name) of a region, a clip will be created from a WFS and via WCS clips 
+    of CLC, EUNIS and DEM will be created and derived susceptibility maps will be created using the lookuptables.
+
+    Args:
+        name (string): nutsname (bear in mind level 3 are small and fast...)
+
+    Returns:
+        derived maps: For now nothing is done with these maps
+    """
     msg = None
     # step 1 retrieve GeoDataFrame from WFS
     name = name.split(':')[1].replace('}','')
@@ -285,7 +248,14 @@ def mainhandler(name):
 
 
 def mainhandler_hazard(name, hazard):
-        
+    """
+    Creates derived data based on filter dataframe of nuts from WFS, clip from raster CLC via WCS and 
+    provides wms to front end from derived maps from lookuptables
+    
+    args:
+        name (string): name of nuts region
+        hazard (string): name of hazard (should be in the list of hazards with associated lookuptables)
+    """    
     msg = None
 
     # check if hazard provided is listed in the list of hazards

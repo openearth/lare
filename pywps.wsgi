@@ -42,12 +42,14 @@ from pywps.app.Service import Service
 from processes.wps_lare_landscape import WpsLareLandscape
 from processes.wps_lare_hazard import WpsLareHazard
 from processes.wps_lare_uom import WpsLareUoM
+from processes.wps_lare_kcs import WpsLareKCS
 
 # LARE processes
 processes = [
     WpsLareLandscape(),
     WpsLareHazard(),
     WpsLareUoM(),
+    WpsLareKCS(),
     ]
 
 # Description used in template

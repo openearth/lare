@@ -40,6 +40,8 @@ import numpy as np
 # local
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
+from processes.utils_vector import transformgdf, is_metric_crs
+from processes.utils_geoserver import publish_gpkg
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import clipfromwfs_cql
@@ -102,14 +104,34 @@ def mainhandler_uom(name, area):
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
     try:
         gdf = clipfromwfs_cql(name,'app.yml')
+        logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
     except Exception as e:
         msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
         return json.dumps(msg)
-    print(msg)
     
+    # check crs, this should be a metric system (default to 3035)
     try:
+        if not is_metric_crs(gdf.crs):
+            gdf = transformgdf(gdf)
+            msg = f"!-- Main handler uom: defaulting to 3035 successful"
+        else:
+            msg = f"!-- Main handler uom: no transformation necessary"
+        logging.info(f'!-- {msg}')
+    except Exception as e:
+        msg = f"!-- Main handler hazard: transformation to 3035 failed"
+        logging.error(f'!-- {msg}')
+
+    try:
+        # create tempfile
+        hexgrid = tempfile(tmpdir,'hexagons_','.gpkg')
+        logging.info(f'!-- Main handler hexagrid created {hexgrid}')
+        # create hexagons based on the passed square meters
         hexgdf = hexgrid_within(gdf, area)
-        hexgdf.to_file(os.path.join(tmpdir,"hexgrid.gpkg"), driver="GPKG")
+        hexgdf.to_file(hexgrid, driver="GPKG")
+        logging.info(f'!-- Main handler hexagrid created {hexgrid}')
     except Exception as e:
         msg = f"!-- Main handler hazard: Creation of rasters with clip for name {name} failed with error: {str(e)}"
         return json.dumps(msg)
+    
+    # load the data into geoserver
+    publish_gpkg(hexgrid)

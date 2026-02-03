@@ -33,15 +33,12 @@ import os
 import json
 import geopandas as gpd
 from shapely.geometry import MultiPolygon, Polygon
-#import fiona
-#import math
 import geojson
-#from osgeo import ogr
 from sqlalchemy import create_engine
-from pyproj import Proj, transform
-#from rasterstats import zonal_stats
+from pyproj import CRS, Proj, transform
+
+# import local functions
 from processes.utils_lines import split_line_multiple
-# from utils_lines import split_line_multiple
 
 # Change XY coordinates general function
 def change_coords(px, py, epsgin='epsg:4326', epsgout='epsg:3857'):
@@ -129,170 +126,44 @@ def geojson_to_wkt_gpd(geojson_str: str) -> str:
 
     return geom.wkt
 
+def transformgdf(gdf, crsout=3035):
+    """
+    Transform a GeoDataFrame to EPSG code 3035 (ETRS89-LAEA Europe).
 
+    Parameters:
+    gdf (geopandas.GeoDataFrame): The input GeoDataFrame to be transformed.
 
-# Get roads given an area of interest
-def get_roads(cf, roadsId, lines=False):
-	# Check if existing selection exists [caching]
-	if lines:
-		outfname = os.path.join(cf.get('Settings', 'tmpdir'), roadsId.rstrip()+'_lines.geojson')
-	else:
-		outfname = os.path.join(cf.get('Settings', 'tmpdir'), roadsId.rstrip() + '.geojson')
+    Returns:
+    geopandas.GeoDataFrame: The transformed GeoDataFrame in EPSG 3035.
+    """
+    # Ensure the input is a GeoDataFrame
+    if not isinstance(gdf, gpd.GeoDataFrame):
+        raise ValueError("Input must be a GeoDataFrame")
 
-	print('Loading: {}'.format(outfname))
-	# Calculate temp roads only if necessary
-	if not(os.path.exists(outfname)):
-		raise ValueError('The roads layer selected does not exist')
+    # Transform the GeoDataFrame to EPSG 3035
+    gdf_transformed = gdf.to_crs(epsg=crsout)
 
-	return outfname
+    return gdf_transformed     
 
-# Get envelope for only the roads [GeoJSON]
-def get_roads_envelope_geojson(geojson_file):
-  # Read geojson
-  with open(geojson_file, 'r') as myfile:
-    geojson_str = myfile.read().replace('\n', '')    
-    geom = ogr.CreateGeometryFromJson(geojson_str)
-    xmin, xmax, ymin, ymax = geom.GetEnvelope()
-  return xmin, ymin, xmax, ymax # s,w,n,e
+def is_metric_crs(crs):
+    """
+    Check if a given CRS is in a metric system.
 
-# Get WKT string from bounds
-def get_wkt_from_bounds(s, w, n, e):
-	wkt_str = 'POLYGON (( {y0} {x0}, {y0} {x1}, {y1} {x1}, {y1} {x0}, {y0} {x0} ))'.format(x0=w, x1=e, y0=s, y1=n)
-	return wkt_str
+    Parameters:
+    crs (pyproj.CRS or str): The CRS to check. This can be a pyproj.CRS object or a CRS string (e.g., 'EPSG:4326').
 
-# Get envelope for only the roads [shapefile]
-def get_roads_envelope_shp(shp_file):
-	# Read shapefile
-	driver = ogr.GetDriverByName("ESRI Shapefile")
-	dataSource = driver.Open(shp_file, 0)
-	layer = dataSource.GetLayer()
+    Returns:
+    bool: True if the CRS is in a metric system, False otherwise.
+    """
+    # Convert the input to a pyproj.CRS object if it's a string
+    if isinstance(crs, str):
+        crs = CRS.from_string(crs)
 
-	# Get full envelope
-	x=[]
-	y=[]
-	for feature in layer:
-		geom = feature.GetGeometryRef()
-		xmin, xmax, ymax, ymin = geom.GetEnvelope()
-		x.append(xmin)
-		x.append(xmax)
-		y.append(ymin)
-		y.append(ymax)
-	layer.ResetReading()
+    # Get the axis units
+    axis_units = crs.axis_info[0].unit_name
 
-	return min(x), min(y), max(x), max(y) # s,w,n,e
+    # Check if the units are metric
+    metric_units = ['metre', 'meter', 'kilometre', 'kilometer', 'centimetre', 'centimeter', 'millimetre', 'millimeter']
 
-# Get roads as GeoJSON
-def get_roads_geojson(cf, geojson_str, buffsize):
-	# DB connections
-	engine = create_engine('postgresql+psycopg2://'+cf.get('PostGIS', 'user')
-	+':'+cf.get('PostGIS', 'pass')+'@'+cf.get('PostGIS', 'host')+':'+str(cf.get('PostGIS', 'port'))
-	+'/'+cf.get('PostGIS', 'db'), strategy='threadlocal')
+    return axis_units in metric_units
 
-	# Get WKT string [postgis handles better]
-	area = get_area_bounds(cf, geojson_str)
-	wkt_str = geojson_to_wkt(geojson_str)
-	buffsizedeg = float(buffsize)/111139.0
-
-	# PostGIS query [buffer and union]
-	bufferQ = '''ST_AsGeoJSON(ST_Intersection(ST_GeomFromText(\'{g}\', {s}), ST_Union(ST_Buffer(wkb_geometry, {b})))) as buffer'''.format(b=buffsizedeg, g=wkt_str, s=4326)
-	linesQ = '''ST_AsGeoJSON(ST_Intersection(ST_GeomFromText(\'{g}\', {s}), ST_Union(wkb_geometry))) as lines'''.format(g=wkt_str, s=4326)
-	sqlStr = '''SELECT {buffer_query}, {lines_query} FROM {t} WHERE ST_Intersects(wkb_geometry, ST_GeomFromText(\'{g}\', {s}))'''.format(
-            	g=wkt_str, s=4326, t='osm_roads_joan', buffer_query=bufferQ, lines_query=linesQ)
-
-	# Get data and close connection [one row]
-	resB = engine.execute(sqlStr)
-	for r in resB:
-		dataBuffered = r.buffer
-		dataLines = r.lines
-	resB.close()
-
-	return dataBuffered, dataLines
-
-
-# Coverage functions [for now]
-def in_europe(s, w, n, e):
-	europe = [-24.7003125, 35.96066995, 47.63671875, 71.87554134]
-	return ((n > europe[0]) and (n < europe[2]) # North check
-		and (s > europe[0]) and (s < europe[2]) # South check
-		and (e > europe[1]) and (e < europe[3]) # East check
-		and (w > europe[1]) and (w < europe[3])) # West check
-
-# Culverts/OSM functions
-def get_culverts(cf, tableName, wkt_str, workdir, distance):
-
-	# OSM culverts in europe are points, otherwise lines
-	shpfName = os.path.join(workdir, 'culverts_{}.shp'.format(distance))
-	distance_deg = float(distance)/111120.0 # meters to degrees
-
-	# PostGIS query [buffer and union]
-	sql = '''SELECT ST_Union(ST_Buffer(wkb_geometry, {b})) FROM {t} WHERE ST_Within(wkb_geometry, ST_GeomFromText(\'{g}\', {s}))'''.format(
-	b=distance_deg, g=wkt_str, t=tableName, s=4326)
-		
-	# PostGIS connection 
-	pg = 'host={h} dbname={d} user={u} password={p}'.format(
-	  h=cf.get('PostGIS', 'host'),
-	  u=cf.get('PostGIS', 'user'),
-	  p=cf.get('PostGIS', 'pass'),
-	  d=cf.get('PostGIS', 'db'))	
-
-	# Extraction and concat		
-	cmd = '''ogr2ogr -f "ESRI Shapefile" {shp} PG:"{p}" -sql "{s}"'''.format(
-		s=sql, p=pg, shp=shpfName)
-	os.system(cmd)  
-	
-	return shpfName
-
-# Get risks per segment on a Roads/GeoJSON + Risk/GeoTiff
-def risk_calc(fc_lines, fc_poly, sourceFname):
-
-	# Calculate zonal stats
-	print('Calculating zonal stats ...')
-	res = zonal_stats(fc_poly, sourceFname, stats="min max mean")
-	print('Done')
-
-	i=0
-	for g in fc_lines['features']:
-
-		# Default coloring		
-		if res[i]['mean'] >= 2.0:
-			res[i]['color'] = '#FF0000' # red
-		elif res[i]['mean'] >= 1.0:
-			res[i]['color'] = '#fff565' # yellow
-		else:
-			res[i]['color'] = '#00FF00' # green
-
-		# Save results
-		g['properties'] = res[i]		
-
-		i+=1
-
-	return fc_lines
-
-# GeoJSON split road multilinestring into a feature collection of linestrings [segments]
-def get_roads_splitted(geojson_roads, segment_length, buffer_size):
-
-	# Collection of splitted lines
-	print('Splitting roads ...')
-	fc = {'type': 'FeatureCollection', 'features': []}
-	fcb = {'type': 'FeatureCollection', 'features': []}
-	# Parse existing roads selection [single Multilinestring]
-	with fiona.open(geojson_roads) as gj:
-		for feature in gj:
-			geom = feature['geometry']
-			shapely_geom = shape(geom)
-			# For every LineString
-			for line in shapely_geom:
-				segs = split_line_multiple(ogr.CreateGeometryFromWkb(line.wkb), length=segment_length)
-				for s in segs:
-					fc['features'].append(create_feature(s))
-					fcb['features'].append(create_feature(s.Buffer(buffer_size)))
-	return fc, fcb
-
-# Create a GeoJSON feature from an OGR feature
-def create_feature(g):
-	feat = {
-		'type': 'Feature',
-		'properties': {},
-		'geometry': json.loads(g.ExportToJson())
-	}
-	return feat
