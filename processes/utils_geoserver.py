@@ -33,6 +33,7 @@ import json
 import time
 import requests
 from requests.auth import HTTPBasicAuth
+from collections import defaultdict
 
 # conda packages
 from geo.Geoserver import Geoserver, GeoserverException
@@ -90,6 +91,9 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
     dctstyles = {}
     dctstyles['fire']    = ("Fire mitigation",'fire')
     dctstyles['heat']    = ("Heatwave mitigation",'heat')
+    dctstyles['drought']    = ("Drought mitigation",'drought')
+    dctstyles['erosion']    = ("Erosion mitigation",'erosion')
+    dctstyles['flood']    = ("Flood mitigation",'flood')
 
     # Initialize the geoserver
     try:
@@ -402,3 +406,47 @@ def publish_gpkg(
             else:
                 gs.set_default_style(workspace, name, style_name)
                 logging.info(f"Set default style '{style_name}' for layer {workspace}:{name}")
+    return f'{workspace}:{name}'
+
+def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
+    """creates specifc output for the map viewer environment 
+
+    Args:
+        wmslay (list)    : list of layers created in the geoserver
+        folder (string)  : folder description for the viewer so it can aggregate the layers
+        jsontitles (json): jsonobject with names and titles of the layer (so readable titles and technical names)
+        wmsurl (string)  : url to the geoserver ows address
+
+    Returns:
+        json             : returns a json with a structure that is used in the viewer
+    """
+
+    logging.info(f"!-- create viewer input '{wmslay}', {folder}, {jsontitles}, {wmsurl}")
+    res = []
+    res_dict = defaultdict(list)  # <-- cleaner
+
+    for lname in wmslay:
+        parts = lname.split('_')
+        if len(parts) < 2:
+            logging.info(f"Layer name '{lname}' has no hazard part, {lname} will be used")
+            name = folder
+            title = next(iter(jsontitles.values()))
+        else:
+            name = parts[1]
+            title = jsontitles.get(name, name)
+
+        res_dict[name].append({
+            "name": title,
+            "layer": lname,
+            "url": wmsurl
+        })
+
+    # Convert to desired structure
+    for i, entries in res_dict.items():
+        res.append({
+            "folder": folder,
+            "contents": entries
+        })
+
+    print(res)
+    return json.dumps(res, indent=2)

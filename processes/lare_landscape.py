@@ -29,7 +29,6 @@
 import os
 import json
 import yaml
-from collections import defaultdict
 
 # imports
 import numpy as np
@@ -43,7 +42,7 @@ from processes.utils import read_appyml, tempfile, load_reclass_topo, load_recla
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
-from processes.utils_geoserver import load2geoserver
+from processes.utils_geoserver import load2geoserver, createvieweroutput
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import wfs_filter
@@ -282,34 +281,9 @@ def mainhandler_hazard(name, hazard):
     
     # call the handler to do the magic
     try:
-        res = []
         wmslay = handler_clc(gdf, hazard=hazard)
-        res_dict = defaultdict(list)  # <-- cleaner
-
-        for lname in wmslay:
-            parts = lname.split('_')
-            if len(parts) < 2:
-                raise ValueError(f"Layer name '{lname}' has no hazard part")
-
-            hzname = parts[1]
-            hztitle = jsonhazard.get(hzname, hzname)
-
-            res_dict[hzname].append({
-                "name": hztitle,
-                "layer": lname,
-                "url": wmsurl
-            })
-
-        # Convert to desired structure
-        for hz, entries in res_dict.items():
-            res.append({
-                "folder": "Mitigation data",
-                "contents": entries
-            })
-
-        print(res_dict)
-        print(res)
-        return json.dumps(res, indent=2)
+        res = createvieweroutput(wmslay, 'Mitigation score', jsonhazard, wmsurl)
+        return res
 
     except Exception as e:
         msg = f"!-- Main handler hazard: Creation of rasters with clip for name {name} failed with error: {str(e)}"

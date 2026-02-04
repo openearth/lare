@@ -41,7 +41,7 @@ import numpy as np
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg
+from processes.utils_geoserver import publish_gpkg, createvieweroutput
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import clipfromwfs_cql
@@ -102,6 +102,8 @@ def mainhandler_uom(name, area):
     # check if hazard provided is listed in the list of hazards
     appconfig = read_appyml('app.yml')    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
+    wmsurl = appconfig['sdi']['geoserver']['url']
+
     try:
         gdf = clipfromwfs_cql(name,'app.yml')
         logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
@@ -118,7 +120,7 @@ def mainhandler_uom(name, area):
             msg = f"!-- Main handler uom: no transformation necessary"
         logging.info(f'!-- {msg}')
     except Exception as e:
-        msg = f"!-- Main handler hazard: transformation to 3035 failed"
+        msg = f"!-- Main handler uom: transformation to 3035 failed"
         logging.error(f'!-- {msg}')
 
     try:
@@ -128,10 +130,16 @@ def mainhandler_uom(name, area):
         # create hexagons based on the passed square meters
         hexgdf = hexgrid_within(gdf, area)
         hexgdf.to_file(hexgrid, driver="GPKG")
+
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
     except Exception as e:
-        msg = f"!-- Main handler hazard: Creation of rasters with clip for name {name} failed with error: {str(e)}"
-        return json.dumps(msg)
+        msg = f"!-- Main handler uom: Creation of rasters with clip for name {name} failed with error: {str(e)}"
+        
     
     # load the data into geoserver
-    publish_gpkg(hexgrid)
+    try:
+        wmslay = publish_gpkg(hexgrid)
+        res = createvieweroutput([wmslay], 'Unit of Measurement', {'uom':'Unit of Measurement'}, wmsurl)
+        return res
+    except Exception as e:
+        return json.dumps(msg)
