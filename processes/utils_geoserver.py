@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2018 Deltares
-#       Joan Sala
-#       joan.salacalero@deltares.nl
+#   Copyright (C) 2026 Deltares
+#       Gerrit Hendriksen
+#       gerrit.hendriksen@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -34,6 +34,12 @@ import time
 import requests
 from requests.auth import HTTPBasicAuth
 from collections import defaultdict
+import geopandas as gpd
+from shapely.geometry import mapping
+from pyproj import CRS, Transformer
+from shapely.geometry import shape
+from shapely.ops import transform
+from shapely.wkt import loads, dumps
 
 # conda packages
 from geo.Geoserver import Geoserver, GeoserverException
@@ -450,3 +456,48 @@ def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
 
     print(res)
     return json.dumps(res, indent=2)
+
+
+def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
+    # Define the URL and layers
+    try:
+        if filter_crs != kcs_crs:
+            # Define the CRS transformer
+            project = Transformer.from_crs(filter_crs, kcs_crs, always_xy=True)
+
+            # Transform the NUTS region geometry to CRS 4326
+            nuts_geom = filtergdf.geometry.apply(lambda geom: transform(project.transform, geom))
+
+            # Create a GeoDataFrame from the transformed geometry
+            nuts_gdf = gpd.GeoDataFrame(geometry=nuts_geom, crs=CRS.from_epsg(kcs_crs))
+        else:
+            nuts_gdf = filtergdf
+        wkt_representation = dumps(nuts_gdf.geometry.iloc[0])
+        logging.info(f'!--- filtering vector data: filtergdf converted to {kcs_crs}')
+    except Exception as e:
+        logging.error(f'! -- filtering vector data: transformer failed with {str(e)}')
+
+    
+    # Get the roads within the NUTS region
+    kcs_params = {
+        'service': 'WFS',
+        'version': '2.0.0',
+        'request': 'GetFeature',
+        'typeNames': kcslayer,
+        'outputFormat': 'application/json',
+        'CQL_FILTER': f"Intersects(geom, SRID={kcs_crs};{wkt_representation})"
+    }
+
+    try:
+        kcs_response = requests.get(geoserver_url, params=kcs_params)
+        kcs_data = kcs_response.json()
+        logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf')
+    except GeoserverException as ge:
+        logging.error(f'! -- filtering vector data failed with Geoserverexception {ge}')
+    except Exception as e:
+        logging.error(f'! -- filtering vector data with nuts_gdf failed with {e}')
+    
+    # Create a GeoDataFrame from the roads data
+    kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(4326))
+    logging.info('!--- filtering vector data: {kcslayer} filtered by filtergdf')
+    return kcs_gdf

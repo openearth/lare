@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright notice
 #   --------------------------------------------------------------------
-#   Copyright (C) 2025 Deltares
+#   Copyright (C) 2026 Deltares
 #       Gerrit Hendriksen
 #       gerrit.hendriksen@deltares.nl
 #
@@ -42,7 +42,7 @@ import numpy as np
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg
+from processes.utils_geoserver import publish_gpkg, filtervectorbyvector
 from processes.utils_raster import lare_raster
 
 
@@ -58,7 +58,8 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
     msg = None
 
     # check if hazard provided is listed in the list of hazards
-    appconfig = read_appyml('app.yml')    
+    appconfig = read_appyml('app.yml')
+    geoserver_url = appconfig['ows']['base']    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
 
     # find the layer defined for hazard as well as uomlayer
@@ -93,10 +94,33 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
         return None
     print(msg)
 
+
+    # first find out what datatype KCS is
+    dctkcs = appconfig['layers']['kcs']
+    datatype = None
+    for k in dctkcs.keys():
+        if k.find(kcs) != -1:
+            kcslayer = k
+            datatype = dctkcs[k]
+            print('kcslayer',k)
+            msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} is {datatype}'
+            logging.info(msg)
+    if datatype == None:
+        msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} not found'
+        return json.dump(msg)
+
+
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
     try:
-        outkcs = lare_raster(gdf, 4326, kcs)
+        if datatype == 'raster':
+            outkcs = lare_raster(gdf, 4326, kcs)
+        elif datatype == 'vector':
+            print('! --- do something new :)')
+            outkcs = filtervectorbyvector(geoserver_url,gdf,4326,kcslayer,4326)
+            # TODO aggregate the outkcs to the uomgpkg
+            print('aggregate the outkcs to the uomgpkg')
         if outkcs != None:
+
             logging.info(f'{kcs} clipped and ready for use as {outkcs}') 
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
