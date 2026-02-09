@@ -364,15 +364,29 @@ def publish_gpkg(
     lname = os.path.basename(gpkg_path).replace('.gpkg','')
     datastore = lname
 
-    gs = GS(geoserver_url, username, password)
-    gs.ensure_workspace(workspace)  # create if missing  (REST workspaces)  # ref
-    # (Workspaces endpoint is under the GeoServer REST umbrella)  # [5](https://docs.geoserver.org/stable/en/user/rest/)
+    try:
+        gs = GS(geoserver_url, username, password)
+        gs.ensure_workspace(workspace)  # create if missing  (REST workspaces)  # ref
+        # (Workspaces endpoint is under the GeoServer REST umbrella)  # [5](https://docs.geoserver.org/stable/en/user/rest/)
+    except Exception as e:
+        logging.error(f"Failed to connect to GeoServer or ensure workspace: {e}")
+        raise RuntimeError(f"GeoServer connection/workspace error: {e}")
+    except GeoserverException as ge:    
+        logging.error(f"GeoserverException while ensuring workspace: {ge}")
+        raise RuntimeError(f"GeoServer workspace error: {ge}")
 
     # Upload GeoPackage to store
-    gs.upload_gpkg_datastore(workspace, datastore, gpkg_path,
-                             configure="none", update="overwrite")
-    # The /datastores ... /file.gpkg endpoint accepts the file bytes and
-    # creates/updates the file-based store.  # [1](https://docs.geoserver.org/stable/en/user/rest/api/datastores.html)
+    try:
+        gs.upload_gpkg_datastore(workspace, datastore, gpkg_path,
+                                configure="none", update="overwrite")
+        # The /datastores ... /file.gpkg endpoint accepts the file bytes and
+        # creates/updates the file-based store.  # [1](https://docs.geoserver.org/stable/en/user/rest/api/datastores.html)
+    except Exception as e:
+        logging.error(f"Failed to upload GeoPackage to GeoServer: {e}")
+        raise RuntimeError(f"GeoServer upload error: {e}")  
+    except GeoserverException as ge:
+        logging.error(f"GeoserverException while uploading GeoPackage: {ge}")
+        raise RuntimeError(f"GeoServer upload error: {ge}")
 
     # Give GeoServer a moment to inspect the new store
     time.sleep(delay_after_upload)

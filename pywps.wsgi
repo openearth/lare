@@ -43,6 +43,7 @@ from processes.wps_lare_landscape import WpsLareLandscape
 from processes.wps_lare_hazard import WpsLareHazard
 from processes.wps_lare_uom import WpsLareUoM
 from processes.wps_lare_kcs import WpsLareKCS
+from processes.wps_lare_region import WpsLareRegion
 
 # LARE processes
 processes = [
@@ -50,6 +51,7 @@ processes = [
     WpsLareHazard(),
     WpsLareUoM(),
     WpsLareKCS(),
+    WpsLareRegion(),
     ]
 
 # Description used in template

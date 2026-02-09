@@ -27,10 +27,10 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=name='Menorca';kcs=socio_economic:pop2020;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=name='Menorca';kcs=transport;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
-# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_hazard&datainputs=nutsname='Menorca';hazard=fire
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&lare_kcs&datainputs=name='Menorca';kcs=transport;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
 
 # other
 import os

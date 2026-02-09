@@ -42,7 +42,7 @@ import numpy as np
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, filtervectorbyvector
+from processes.utils_geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput
 from processes.utils_raster import lare_raster
 
 
@@ -53,6 +53,48 @@ from processes.utils_raster import lare_raster
 
 logging.basicConfig(level=logging.INFO)
 
+def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
+    #outkcs = gpd.read_file(outkcs)
+    print(type(outkcs))
+    print(type(uomgpkg))
+
+    # Check the CRS of both datasets
+    print("CRS of outkcs:", outkcs.crs)
+
+    uom = gpd.read_file(uomgpkg,engine='pyogrio')
+    print("CRS of uomgpkg:", uom.crs)
+
+    # Reproject if necessary
+    if outkcs.crs != uom.crs:
+        outkcs = outkcs.to_crs(uom.crs)
+
+    # Calculate the length of the geometries in outkcs
+    outkcs['length'] = outkcs.geometry.length
+
+    # Perform the spatial join
+    aggregated = gpd.sjoin(outkcs, uom, how="inner", predicate='intersects')
+
+    # Aggregate the data by summing the lengths
+    aggregated = aggregated.groupby('index_right').agg({
+        'length': 'sum'  # Sum the lengths of the intersecting geometries
+    }).reset_index()
+
+    # Fill missing values with 0
+    aggregated['length'] = aggregated['length'].fillna(0)
+
+    # Merge back with the original hexagons to get the aggregated data
+    result = uom.merge(aggregated, left_index=True, right_on='index_right', how='left')
+
+    # Fill missing values with 0 in the result
+    result['length'] = result['length'].fillna(0)
+    # Save the result to a new GeoPackage
+    agg_uomkcs = tempfile(tmpdir,'agg_uomkcs_','.gpkg')
+    result.to_file(agg_uomkcs, layer='aggregated_hexagons', driver='GPKG')
+
+    print("Aggregation complete. Result saved to 'aggregated_uomgpkg.gpkg'.")
+
+
+
 def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
         
     msg = None
@@ -61,12 +103,14 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
     appconfig = read_appyml('app.yml')
     geoserver_url = appconfig['ows']['base']    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
+    wmsurl = appconfig['sdi']['geoserver']['url']
 
     # find the layer defined for hazard as well as uomlayer
+    # take into account the crs
     try:
-        uomgpkg = os.path.join(tmpdir,uomlayer+'.gpgk')
+        uomgpkg = os.path.join(tmpdir,uomlayer+'.gpkg')
         if not os.path.isfile(uomgpkg):
-            logging.error(f'Layer with Unit of Measurements {uomgpkg} not foudn')
+            logging.error(f'Layer with Unit of Measurements {uomgpkg} not found')
         else:
             logging.info(f'{uomgpkg} found and used in further process') 
     except Exception as e:
@@ -76,7 +120,7 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
     try:
         hazardtif = os.path.join(tmpdir,hazardlr+'.tif')
         if not os.path.isfile(hazardtif):
-            logging.error(f'Layer with hazarddescripiton {hazardtif} not foudn')
+            logging.error(f'Layer with hazarddescripiton {hazardtif} not found')
         else:
             logging.info(f'{hazardtif} found and used in further process') 
     except Exception as e:
@@ -115,17 +159,20 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
         if datatype == 'raster':
             outkcs = lare_raster(gdf, 4326, kcs)
         elif datatype == 'vector':
-            print('! --- do something new :)')
             outkcs = filtervectorbyvector(geoserver_url,gdf,4326,kcslayer,4326)
             # TODO aggregate the outkcs to the uomgpkg
-            print('aggregate the outkcs to the uomgpkg')
+            agguomkcs = aggregate_kcs_uom(outkcs,uomgpkg,tmpdir)
+            logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
         if outkcs != None:
 
             logging.info(f'{kcs} clipped and ready for use as {outkcs}') 
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
-    # load raster into array
-    #with rasterio.open(outclc) as src:
-    #    kcs_array = src.read(1)
-    ##    meta = src.meta
-    #    src_nodata = src.nodata
+
+    # load the data into geoserver and return to WPS.
+    try:
+        wmslay = publish_gpkg(agguomkcs)
+        res = createvieweroutput([wmslay], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
+        return res
+    except Exception as e:
+        return json.dumps(msg)

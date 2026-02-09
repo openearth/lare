@@ -27,10 +27,10 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_region&datainputs=nutsname='Menorca'
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
-# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_region&datainputs=nutsname='Menorca'
 
 # other
 import os
@@ -42,13 +42,13 @@ logging.basicConfig(level=logging.INFO)
 # PyWPS
 from pywps import Process, Format, FORMATS
 from pywps.inout.inputs import LiteralInput
-from pywps.inout.outputs import ComplexOutput
+from pywps.inout.outputs import ComplexOutput, LiteralOutput
 from pywps.app.Common import Metadata
 
 # local
-from .lare_uom import mainhandler_uom
+from .lare_region import mainhandler_region
 
-class WpsLareUoM(Process):
+class WpsLareRegion(Process):
 
 	def __init__(self):
 		# Input [in json format ]
@@ -59,29 +59,27 @@ class WpsLareUoM(Process):
                 abstract='String identifying the nutsregion, level 3',
                 data_type='string',
                 keywords=['nuts region', 'name', 'common name']
-            ),
-            LiteralInput(
-                identifier='uomsize',
-                title='Size of the hexagons in square meters',
-                abstract='Integer size of the hexagon in square meters',
-                data_type='integer',
-				keywords=['uom','unit of measurement']
             )]
 
 		# Output [in json format]
-		outputs = [ComplexOutput('output_json',
-		                         'LARE UoM creation',
-		                         supported_formats=[Format('application/json')])]
+		outputs = [ComplexOutput(identifier='output_json',
+						   		 title='Output json', 
+								 abstract='Output json with link to the geoserver layer with the selected region',
+		                         supported_formats=[Format('application/json')]),
+					LiteralOutput(identifier='suggested_uom',
+				   				 abstract='Suggested size of the unit of measurement in m2',
+		                         title='Suggested size of the unit of measurement in m2',
+		                         data_type='integer')]
 
-		super(WpsLareUoM, self).__init__(
+		super(WpsLareRegion, self).__init__(
 		    self._handler,
-		    identifier='lare_uom',
+		    identifier='lare_region',
 		    version='1.0',
-		    title='Create Unit of Measurment layer',
-		    abstract='This process creates datalayers unit of measurement based on nutsname and area' \
+		    title='Select NUTS region (level 3)',
+		    abstract='This process enables selection of a NUTS region (level 3) and returns the suggested size of the unit of measurement in m2' \
 			         'The process is carried out for a selected region',
 		    profile='',
-		    metadata=[Metadata('WpsLareUoM'), Metadata('lare/uom')],
+		    metadata=[Metadata('WpsLareRegion'), Metadata('lare/region')],
 		    inputs=inputs,
 		    outputs=outputs,
 		    store_supported=False,
@@ -94,12 +92,12 @@ class WpsLareUoM(Process):
 		try:		
 			# call mainhandler
 			nutsname = request.inputs.get('nutsname', [])[0].data
-			area     = request.inputs.get('uomsize', [])[0].data
-			logging.info(f'!-- wps lare hazard create uon for nuts_name {nutsname} with size {str(area)}')
+			logging.info(f'!-- wps lare region, create dataframe nuts_name {nutsname}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			res = mainhandler_uom(nutsname, area)
+			res, suggested_uom = mainhandler_region(nutsname)
 			response.outputs['output_json'].data = res
+			response.outputs['suggested_uom'].data = str(suggested_uom)
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }
 			logging.info(f'!-- wps lare {res}')
