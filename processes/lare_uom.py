@@ -114,7 +114,7 @@ def mainhandler_uom(name, area):
     # check crs, this should be a metric system (default to 3035)
     try:
         if not is_metric_crs(gdf.crs):
-            gdf = transformgdf(gdf)
+            gdf = transformgdf(gdf, 3035)
             msg = f"!-- Main handler uom: defaulting to 3035 successful"
         else:
             msg = f"!-- Main handler uom: no transformation necessary"
@@ -122,6 +122,7 @@ def mainhandler_uom(name, area):
     except Exception as e:
         msg = f"!-- Main handler uom: transformation to 3035 failed"
         logging.error(f'!-- {msg}')
+    logging.info(f'!-- Area of {name} is {gdf.area.sum()}')
 
     try:
         # create tempfile
