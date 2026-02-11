@@ -333,6 +333,10 @@ class GS:
         PUT /rest/workspaces/{ws}/layers/{layer_name}
         Body: {"layer":{"defaultStyle":{"name":"<style>"}}}
         """
+        # First verify the style exists
+        if not self.style_exists(style_name):
+            raise RuntimeError(f"Style '{style_name}' does not exist")
+        
         payload = {"layer": {"defaultStyle": {"name": style_name}}}
         r = requests.put(
             f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}",
@@ -465,15 +469,21 @@ def publish_gpkg(
                 store=datastore,
                 layer_name=ft_name
             )
-
-            if style_name:
-                gs.set_default_style(workspace, ft_name, style_name)
-
             published_layers.append(ft_name)
+            logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
 
         except Exception as e:
             logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
             raise
+        
+        # Try to set style, but don't fail if it doesn't work
+        if style_name:
+            try:
+                logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
+                gs.set_default_style(workspace, ft_name, style_name)
+                logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
+            except Exception as e:
+                logging.warning(f"!-- publish_gpkg: Failed to set style for {ft_name}: {e}. Layer is published but without style.")
 
     logging.info(f"!-- publish_gpkg: Successfully published layers: {published_layers}")
     return published_layers
