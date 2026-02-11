@@ -434,7 +434,12 @@ def publish_gpkg(
         data = r.json()
 
         if "featureTypes" in data:
-            available = [ft["name"] for ft in data["featureTypes"].get("featureType", [])]
+            ft_data = data["featureTypes"]
+            # Handle case where featureTypes might be a dict or a string
+            if isinstance(ft_data, dict):
+                available = [ft["name"] for ft in ft_data.get("featureType", [])]
+            else:
+                logging.warning(f"!-- publish_gpkg: Unexpected featureTypes format: {type(ft_data)}")
 
     if not available:
         raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG.")
