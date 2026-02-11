@@ -82,7 +82,8 @@ def mainhandler_region(name):
     # load the data into geoserver
     try:
         wmslay = publish_gpkg(agpkg,workspace='tmp',style_name='region')
-        res = createvieweroutput(wmslay, 'Unit of Measurement', {'uom':'Unit of Measurement'}, wmsurl)
+        lname = agpkg.split('/')[-1].split('.')[0]
+        res = createvieweroutput(wmslay, 'Region', {'tmp':f'{lname}'}, wmsurl)
         logging.info(f'!-- Main handler region: created viewer output {res}')
         return res, suggested_uom
     except Exception as e:
