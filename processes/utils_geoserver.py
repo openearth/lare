@@ -43,6 +43,7 @@ from shapely.wkt import loads, dumps
 
 # conda packages
 from geo.Geoserver import Geoserver, GeoserverException
+from geoserver.catalog import FailedRequestError
 
 # local packages
 from processes.utils import read_appyml
@@ -363,16 +364,27 @@ def publish_gpkg(
     password = appconfig['sdi']['geoserver']['password']
     lname = os.path.basename(gpkg_path).replace('.gpkg','')
     datastore = lname
+    
+    timeout = 30
+    scan_interval = 1
 
+    try:
+        gdf = gpd.read_file(gpkg_path)
+        crs = gdf.crs
+        logging.info(f"!-- publish_gpkg: GeoPackage read successfully CRS: {gdf.crs}"  )
+    except Exception as e:
+        logging.error(f"!-- publish_gpkg: Failed to read GeoPackage {gpkg_path}: {e}")
+        raise RuntimeError(f"Failed to read GeoPackage: {e}")
+    
     try:
         gs = GS(geoserver_url, username, password)
         gs.ensure_workspace(workspace)  # create if missing  (REST workspaces)  # ref
         # (Workspaces endpoint is under the GeoServer REST umbrella)  # [5](https://docs.geoserver.org/stable/en/user/rest/)
     except Exception as e:
-        logging.error(f"Failed to connect to GeoServer or ensure workspace: {e}")
+        logging.error(f"!-- publish_gpkg: Failed to connect to GeoServer or ensure workspace: {e}")
         raise RuntimeError(f"GeoServer connection/workspace error: {e}")
     except GeoserverException as ge:    
-        logging.error(f"GeoserverException while ensuring workspace: {ge}")
+        logging.error(f"!-- publish_gpkg: GeoserverException while ensuring workspace: {ge}")
         raise RuntimeError(f"GeoServer workspace error: {ge}")
 
     # Upload GeoPackage to store
@@ -381,52 +393,78 @@ def publish_gpkg(
                                 configure="none", update="overwrite")
         # The /datastores ... /file.gpkg endpoint accepts the file bytes and
         # creates/updates the file-based store.  # [1](https://docs.geoserver.org/stable/en/user/rest/api/datastores.html)
+        
+        # Allow GeoServer time to scan the datastore
+        time.sleep(delay_after_upload)
     except Exception as e:
-        logging.error(f"Failed to upload GeoPackage to GeoServer: {e}")
+        logging.error(f"!-- publish_gpkg: Failed to upload GeoPackage to GeoServer: {e}")
         raise RuntimeError(f"GeoServer upload error: {e}")  
     except GeoserverException as ge:
-        logging.error(f"GeoserverException while uploading GeoPackage: {ge}")
+        logging.error(f"!-- publish_gpkg: GeoserverException while uploading GeoPackage: {ge}")
         raise RuntimeError(f"GeoServer upload error: {ge}")
 
-    # Give GeoServer a moment to inspect the new store
-    time.sleep(delay_after_upload)
 
-    # Ask GeoServer which feature types are "available" in the store
-    available = gs.list_available_featuretypes(workspace, datastore)
-    # Feature types listing with ?list=available is the documented approach.  # [2](https://docs.geoserver.org/stable/en/user/rest/api/featuretypes.html)
+    # -------------------------------------------
+    # 2. Wait for GeoServer to scan available feature types
+    # -------------------------------------------
+    logging.info("!-- publish_gpkg: Waiting for GeoServer to detect feature types...")
 
+    deadline = time.time() + timeout
+    available = []
+
+    while time.time() < deadline:
+        try:
+            available = gs.list_available_featuretypes(workspace, datastore)
+            if available:
+                logging.info(f"!-- publish_gpkg: Found available feature types: {available}")
+                break
+        except FailedRequestError:
+            logging.warning("!-- publish_gpkg: GeoServer not ready yet (FailedRequestError), retrying...")
+            pass
+
+        time.sleep(scan_interval)
+
+    # Fallback: list configured types if "available" is empty
     if not available:
-        print("No 'available' feature types reported; trying 'all' as a fallback.")
-        # Fallback: sometimes the store is already configured; fetch configured types
-        r = requests.get(
-            f"{geoserver_url.rstrip('/')}/rest/workspaces/{workspace}/datastores/{datastore}/featuretypes.json",
-            auth=HTTPBasicAuth(username, password), timeout=60
-        )
+        logging.warning("!-- publish_gpkg: No 'available' feature types found — checking configured types.")
+        url = f"{geoserver_url}/rest/workspaces/{workspace}/datastores/{datastore}/featuretypes.json"
+
+        r = requests.get(url, auth=HTTPBasicAuth(username, password), timeout=60)
         r.raise_for_status()
         data = r.json()
-        if "featureTypes" in data and "featureType" in data["featureTypes"]:
-            available = [it["name"] for it in data["featureTypes"]["featureType"]]
+
+        if "featureTypes" in data:
+            available = [ft["name"] for ft in data["featureTypes"].get("featureType", [])]
 
     if not available:
-        raise RuntimeError("GeoServer did not report any feature types in the GeoPackage store.")
+        raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG.")
 
-    # Publish each layer (name must match the table/layer inside the GPKG)
-    for name in available:
+    # -------------------------------------------
+    # 3. Publish each layer
+    # -------------------------------------------
+    published_layers = []
+
+    for ft_name in available:
+        logging.info(f"!-- publish_gpkg: Publishing layer: {ft_name}")
         try:
-            gs.publish_featuretype(workspace, datastore, name, title=name)
-            logging.info(f"Published layer: {workspace}:{name}")
-        except requests.HTTPError as e:
-            # If 409 or 400 occurs, it may already be configured—continue
-            logging.error(f"Note: could not publish {name} ({e}). Continuing.")
+            gs.publish_featuretype(
+                ws=workspace,
+                store=datastore,
+                layer_name=ft_name
+            )
 
-        # Optionally set default style
-        if style_name and set_default_style:
-            if not gs.style_exists(style_name):
-                logging.info(f"Style '{style_name}' not found in workspace '{workspace}'. Skipping style assignment.")
-            else:
-                gs.set_default_style(workspace, name, style_name)
-                logging.info(f"Set default style '{style_name}' for layer {workspace}:{name}")
-    return f'{workspace}:{name}'
+            if style_name:
+                gs.set_default_style(workspace, ft_name, style_name)
+
+            published_layers.append(ft_name)
+
+        except Exception as e:
+            logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
+            raise
+
+    logging.info(f"!-- publish_gpkg: Successfully published layers: {published_layers}")
+    return published_layers
+
 
 def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
     """creates specifc output for the map viewer environment 
