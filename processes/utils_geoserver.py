@@ -435,9 +435,17 @@ def publish_gpkg(
 
         if "featureTypes" in data:
             ft_data = data["featureTypes"]
-            # Handle case where featureTypes might be a dict or a string
+            # Handle different response formats from GeoServer
             if isinstance(ft_data, dict):
+                # Standard response: {"featureType": [...]}
                 available = [ft["name"] for ft in ft_data.get("featureType", [])]
+            elif isinstance(ft_data, str):
+                # Single layer name as string
+                logging.info(f"!-- publish_gpkg: featureTypes is a string: {ft_data}")
+                available = [ft_data]
+            elif isinstance(ft_data, list):
+                # List of layer names
+                available = ft_data
             else:
                 logging.warning(f"!-- publish_gpkg: Unexpected featureTypes format: {type(ft_data)}")
 
