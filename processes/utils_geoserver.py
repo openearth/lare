@@ -333,16 +333,31 @@ class GS:
         PUT /rest/workspaces/{ws}/layers/{layer_name}
         Body: {"layer":{"defaultStyle":{"name":"<style>"}}}
         """
-        # First verify the style exists
-        if not self.style_exists(style_name):
-            raise RuntimeError(f"Style '{style_name}' does not exist")
+        # Check if style exists - try workspace-specific first, then global
+        style_ws = None
+        if self.style_exists(style_name, ws=ws):
+            style_ws = ws
+            logging.info(f"Style '{style_name}' found in workspace '{ws}'")
+        elif self.style_exists(style_name):
+            logging.info(f"Style '{style_name}' found in global styles")
+        else:
+            raise RuntimeError(f"Style '{style_name}' does not exist in workspace '{ws}' or global styles")
         
-        payload = {"layer": {"defaultStyle": {"name": style_name}}}
+        # Build payload - include workspace if style is workspace-specific
+        if style_ws:
+            payload = {"layer": {"defaultStyle": {"name": style_name, "workspace": style_ws}}}
+        else:
+            payload = {"layer": {"defaultStyle": {"name": style_name}}}
+        
+        logging.info(f"Setting style payload: {json.dumps(payload)}")
         r = requests.put(
             f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}",
             auth=self.auth, headers=self.h_json,
             data=json.dumps(payload), timeout=self.timeout
         )
+        if r.status_code != 200:
+            error_detail = r.text if r.text else "No error details"
+            logging.error(f"GeoServer style error response: {error_detail}")
         r.raise_for_status()
 
 

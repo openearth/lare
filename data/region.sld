@@ -1,36 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<StyledLayerDescriptor version="1.0.0" 
- xsi:schemaLocation="http://www.opengis.net/sld StyledLayerDescriptor.xsd" 
- xmlns="http://www.opengis.net/sld" 
- xmlns:ogc="http://www.opengis.net/ogc" 
- xmlns:xlink="http://www.w3.org/1999/xlink" 
- xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <!-- a Named Layer is the basic building block of an SLD document -->
+<StyledLayerDescriptor xmlns="http://www.opengis.net/sld" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:se="http://www.opengis.net/se" xmlns:ogc="http://www.opengis.net/ogc" xsi:schemaLocation="http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.1.0">
   <NamedLayer>
-    <Name>default_polygon</Name>
+    <se:Name>adm_1</se:Name>
     <UserStyle>
-    <!-- Styles can have names, titles and abstracts -->
-      <Title>Default Polygon</Title>
-      <Abstract>A sample style that draws a polygon</Abstract>
-      <!-- FeatureTypeStyles describe how to render different features -->
-      <!-- A FeatureTypeStyle for rendering polygons -->
-      <FeatureTypeStyle>
-        <Rule>
-          <Name>rule1</Name>
-          <Title>Region</Title>
-          <Abstract>A polygon with a gray fill and a 1 pixel black outline</Abstract>
-          <PolygonSymbolizer>
-            <Fill>
-              <CssParameter name="fill">#AAAAAA</CssParameter>
-              <CssParameter name="opacity">0.01</CssParameter>
-            </Fill>
-            <Stroke>
-              <CssParameter name="stroke">#AAAAAA</CssParameter>
-              <CssParameter name="stroke-width">1.5</CssParameter>
-            </Stroke>
-          </PolygonSymbolizer>
-        </Rule>
-      </FeatureTypeStyle>
+      <se:Name>adm_1</se:Name>
+      <se:FeatureTypeStyle>
+        <se:Rule>
+          <se:Name>Region border</se:Name>
+          <se:PolygonSymbolizer>
+            <se:Stroke>
+              <se:SvgParameter name="stroke">#232323</se:SvgParameter>
+              <se:SvgParameter name="stroke-width">1</se:SvgParameter>
+              <se:SvgParameter name="stroke-linejoin">bevel</se:SvgParameter>
+            </se:Stroke>
+          </se:PolygonSymbolizer>
+        </se:Rule>
+      </se:FeatureTypeStyle>
     </UserStyle>
   </NamedLayer>
 </StyledLayerDescriptor>
