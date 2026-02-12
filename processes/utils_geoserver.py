@@ -436,25 +436,39 @@ def publish_gpkg(
         r = requests.get(url, auth=HTTPBasicAuth(username, password), timeout=60)
         r.raise_for_status()
         data = r.json()
+        logging.info(f"!-- publish_gpkg: Raw featureTypes response: {json.dumps(data, indent=2)}")
 
         if "featureTypes" in data:
             ft_data = data["featureTypes"]
             # Handle different response formats from GeoServer
             if isinstance(ft_data, dict):
                 # Standard response: {"featureType": [...]}
-                available = [ft["name"] for ft in ft_data.get("featureType", [])]
+                available = [ft["name"] for ft in ft_data.get("featureType", []) if ft.get("name")]
             elif isinstance(ft_data, str):
-                # Single layer name as string
-                logging.info(f"!-- publish_gpkg: featureTypes is a string: {ft_data}")
-                available = [ft_data]
+                # Single layer name as string - only add if non-empty
+                if ft_data.strip():
+                    logging.info(f"!-- publish_gpkg: featureTypes is a string: '{ft_data}'")
+                    available = [ft_data]
+                else:
+                    logging.warning(f"!-- publish_gpkg: featureTypes is an empty string")
             elif isinstance(ft_data, list):
-                # List of layer names
-                available = ft_data
+                # List of layer names - filter out empty strings
+                available = [name for name in ft_data if name and str(name).strip()]
             else:
                 logging.warning(f"!-- publish_gpkg: Unexpected featureTypes format: {type(ft_data)}")
 
+    # Last resort: read layer names directly from GPKG
     if not available:
-        raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG.")
+        logging.warning("!-- publish_gpkg: No feature types from GeoServer — reading layers from GPKG directly.")
+        try:
+            import fiona
+            available = fiona.listlayers(gpkg_path)
+            logging.info(f"!-- publish_gpkg: Found layers in GPKG: {available}")
+        except Exception as e:
+            logging.error(f"!-- publish_gpkg: Failed to read layers from GPKG: {e}")
+    
+    if not available:
+        raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG and could not read from file.")
 
     # -------------------------------------------
     # 3. Publish each layer
@@ -462,7 +476,13 @@ def publish_gpkg(
     published_layers = []
 
     for ft_name in available:
-        logging.info(f"!-- publish_gpkg: Publishing layer: {ft_name}")
+        # Skip empty or whitespace-only names
+        if not ft_name or not str(ft_name).strip():
+            logging.warning(f"!-- publish_gpkg: Skipping empty layer name")
+            continue
+        
+        ft_name = str(ft_name).strip()
+        logging.info(f"!-- publish_gpkg: Publishing layer: '{ft_name}'")
         try:
             gs.publish_featuretype(
                 ws=workspace,
