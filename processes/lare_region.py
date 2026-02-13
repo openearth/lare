@@ -89,11 +89,11 @@ def mainhandler_region(name):
             parts = layer_name.split('_')
             if len(parts) >= 2:
                 timestamp = parts[1]  # Extract timestamp for jsontitles key
-                # Pass the actual region name (e.g., 'Menorca') as the value
-                res = createvieweroutput(wmslay, 'Region', {timestamp: name}, wmsurl)
+                # Pass the actual region name (no extra quotes - name is already a string)
+                res = createvieweroutput(wmslay, 'Region', {timestamp: str(name)}, wmsurl)
             else:
                 # Fallback if layer name doesn't have expected format
-                res = createvieweroutput(wmslay, 'Region', {'region': name}, wmsurl)
+                res = createvieweroutput(wmslay, 'Region', {'region': str(name)}, wmsurl)
         else:
             raise RuntimeError("No layers were published from the geopackage")
         logging.info(f'!-- Main handler region: created viewer output {res}')
