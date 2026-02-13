@@ -327,12 +327,32 @@ class GS:
                               data=f, timeout=self.timeout)
         r.raise_for_status()
 
+    # ---------- Verify layer exists and is ready ----------
+    def layer_exists(self, ws, layer_name):
+        """
+        GET /rest/workspaces/{ws}/layers/{layer_name}.json
+        Returns True if layer exists and is accessible
+        """
+        r = requests.get(
+            f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}.json",
+            auth=self.auth, timeout=self.timeout
+        )
+        if r.status_code == 200:
+            logging.info(f"Layer '{layer_name}' found in workspace '{ws}'")
+            logging.info(f"Layer details: {r.json()}")
+            return True
+        return False
+
     # ---------- Set default style on the LAYER (not the featureType) ----------
     def set_default_style(self, ws, layer_name, style_name):
         """
         PUT /rest/workspaces/{ws}/layers/{layer_name}
         Body: {"layer":{"defaultStyle":{"name":"<style>"}}}
         """
+        # First verify the layer exists and is accessible
+        if not self.layer_exists(ws, layer_name):
+            raise RuntimeError(f"Layer '{layer_name}' does not exist in workspace '{ws}'")
+        
         # Check if style exists - try workspace-specific first, then global
         style_ws = None
         if self.style_exists(style_name, ws=ws):
@@ -357,7 +377,9 @@ class GS:
         )
         if r.status_code != 200:
             error_detail = r.text if r.text else "No error details"
-            logging.error(f"GeoServer style error response: {error_detail}")
+            logging.error(f"GeoServer style error response (Status {r.status_code}): {error_detail}")
+            logging.error(f"Request URL: {self.url}/rest/workspaces/{ws}/layers/{layer_name}")
+            logging.error(f"Request payload: {json.dumps(payload)}")
         r.raise_for_status()
 
 
@@ -513,12 +535,34 @@ def publish_gpkg(
         
         # Try to set style, but don't fail if it doesn't work
         if style_name:
-            try:
-                logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
-                gs.set_default_style(workspace, ft_name, style_name)
-                logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
-            except Exception as e:
-                logging.warning(f"!-- publish_gpkg: Failed to set style for {ft_name}: {e}. Layer is published but without style.")
+            # Add a delay to ensure layer is fully registered in GeoServer
+            time.sleep(1.5)
+            
+            # Retry mechanism for style setting (sometimes GeoServer needs more time)
+            max_retries = 3
+            retry_delay = 1
+            
+            for attempt in range(max_retries):
+                try:
+                    if attempt > 0:
+                        logging.info(f"!-- publish_gpkg: Retry attempt {attempt + 1}/{max_retries} to set style for {ft_name}")
+                        time.sleep(retry_delay)
+                    
+                    logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
+                    gs.set_default_style(workspace, ft_name, style_name)
+                    logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
+                    break  # Success, exit retry loop
+                    
+                except requests.exceptions.HTTPError as he:
+                    if attempt < max_retries - 1:
+                        logging.warning(f"!-- publish_gpkg: HTTP error on attempt {attempt + 1}, will retry: {he}")
+                    else:
+                        logging.warning(f"!-- publish_gpkg: HTTP error setting style for {ft_name} after {max_retries} attempts: {he}. Response: {he.response.text if hasattr(he, 'response') and he.response else 'No response'}. Layer is published but without style.")
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logging.warning(f"!-- publish_gpkg: Error on attempt {attempt + 1}, will retry: {e}")
+                    else:
+                        logging.warning(f"!-- publish_gpkg: Failed to set style for {ft_name} after {max_retries} attempts: {e}. Layer is published but without style.")
 
     logging.info(f"!-- publish_gpkg: Successfully published layers: {published_layers}")
     return published_layers

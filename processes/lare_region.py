@@ -82,8 +82,20 @@ def mainhandler_region(name):
     # load the data into geoserver
     try:
         wmslay = publish_gpkg(agpkg,workspace='tmp',style_name='region')
-        lname = agpkg.split('/')[-1].split('.')[0]
-        res = createvieweroutput(wmslay, 'Region', {'tmp':f'{lname}'}, wmsurl)
+        # Extract the timestamp from the published layer name to use as key in jsontitles
+        # createvieweroutput splits layer name by '_' and uses parts[1] as the lookup key
+        if wmslay:
+            layer_name = wmslay[0]  # e.g., 'region_1770987127134176'
+            parts = layer_name.split('_')
+            if len(parts) >= 2:
+                timestamp = parts[1]  # Extract timestamp for jsontitles key
+                # Pass the actual region name (e.g., 'Menorca') as the value
+                res = createvieweroutput(wmslay, 'Region', {timestamp: name}, wmsurl)
+            else:
+                # Fallback if layer name doesn't have expected format
+                res = createvieweroutput(wmslay, 'Region', {'region': name}, wmsurl)
+        else:
+            raise RuntimeError("No layers were published from the geopackage")
         logging.info(f'!-- Main handler region: created viewer output {res}')
         return res, suggested_uom
     except Exception as e:
