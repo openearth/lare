@@ -299,6 +299,50 @@ class GS:
             data=json.dumps(payload), timeout=self.timeout
         )
         r.raise_for_status()
+    
+    # ---------- Explicitly ensure layer resource exists ----------
+    def ensure_layer_resource(self, ws, layer_name):
+        """
+        Explicitly create a layer resource if it doesn't exist.
+        Sometimes GeoServer doesn't auto-create the layer when publishing a featureType.
+        
+        POST /rest/workspaces/{ws}/layers
+        Body: {"layer":{"name":"<layer_name>","resource":{"name":"<layer_name>"}}}
+        """
+        # First check if it exists
+        r = requests.get(
+            f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}.json",
+            auth=self.auth, timeout=self.timeout
+        )
+        if r.status_code == 200:
+            logging.info(f"Layer resource '{layer_name}' already exists in workspace '{ws}'")
+            return True
+        
+        # Try to create it - reference the feature type
+        payload = {
+            "layer": {
+                "name": layer_name,
+                "resource": {
+                    "name": f"{ws}:{layer_name}"
+                }
+            }
+        }
+        
+        try:
+            r = requests.post(
+                f"{self.url}/rest/workspaces/{ws}/layers",
+                auth=self.auth, headers=self.h_json,
+                data=json.dumps(payload), timeout=self.timeout
+            )
+            if r.status_code in [200, 201]:
+                logging.info(f"✓ Explicitly created layer resource for '{layer_name}'")
+                return True
+            else:
+                logging.warning(f"Failed to create layer resource: {r.status_code} - {r.text}")
+                return False
+        except Exception as e:
+            logging.warning(f"Error creating layer resource: {e}")
+            return False
 
     # ---------- Check if style exists (optionally in a workspace) ----------
     def style_exists(self, style_name, ws=None):
@@ -357,13 +401,13 @@ class GS:
         return False
 
     # ---------- Set default style on the LAYER (not the featureType) ----------
-    def set_default_style(self, ws, layer_name, style_name, wait_for_layer=True):
+    def set_default_style(self, ws, layer_name, style_name, wait_for_layer=True, max_wait=5):
         """
         PUT /rest/workspaces/{ws}/layers/{layer_name}
         Body: {"layer":{"defaultStyle":{"name":"<style>"}}}
         """
-        # First verify the layer exists and is accessible (wait up to 10 seconds)
-        if wait_for_layer and not self.layer_exists(ws, layer_name, max_wait=10):
+        # First verify the layer exists and is accessible (wait up to max_wait seconds)
+        if wait_for_layer and not self.layer_exists(ws, layer_name, max_wait=max_wait):
             raise RuntimeError(f"Layer '{layer_name}' does not exist in workspace '{ws}' after waiting")
         
         # Check if style exists - try workspace-specific first, then global
@@ -568,6 +612,9 @@ def publish_gpkg(
         # If layers were already configured (via configure="first"), skip manual publishing
         if layers_already_configured:
             logging.info(f"!-- publish_gpkg: Layer '{ft_name}' already configured, skipping manual publish")
+            # Still ensure layer resource exists (belt and suspenders approach)
+            time.sleep(0.5)
+            gs.ensure_layer_resource(workspace, ft_name)
             published_layers.append(ft_name)
         else:
             # Manually publish the feature type
@@ -578,8 +625,15 @@ def publish_gpkg(
                     store=datastore,
                     layer_name=ft_name
                 )
-                published_layers.append(ft_name)
                 logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
+                
+                # CRITICAL: Explicitly ensure layer resource exists
+                # Some GeoServer versions don't auto-create the layer when publishing a featureType
+                time.sleep(0.5)  # Brief delay for feature type to be committed
+                logging.info(f"!-- publish_gpkg: Ensuring layer resource exists for: {ft_name}")
+                gs.ensure_layer_resource(workspace, ft_name)
+                
+                published_layers.append(ft_name)
 
             except Exception as e:
                 logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
@@ -587,14 +641,14 @@ def publish_gpkg(
         
         # Try to set style, but don't fail if it doesn't work
         if style_name:
-            # Add a delay to ensure layer resource is fully created
-            # When using configure="first", GeoServer creates layers automatically but needs time
-            time.sleep(1.0)
+            # Add a brief delay to ensure layer resource is registered
+            time.sleep(0.5)
             
             try:
                 logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
-                # wait_for_layer=True means it will wait up to 10 seconds for the layer to be ready
-                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True)
+                # wait_for_layer=True means it will wait up to 5 seconds for the layer to be ready
+                # (reduced from 10 since we explicitly created the layer)
+                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=5)
                 logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
                     
             except requests.exceptions.HTTPError as he:
