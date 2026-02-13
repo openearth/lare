@@ -47,11 +47,13 @@ def test_python_packages():
     print("\n=== Testing Python Packages ===")
     
     packages = {
-        'geopandas': 'gpd',
+        'geopandas': 'geopandas',
         'fiona': 'fiona',
         'pyogrio': 'pyogrio',
         'requests': 'requests',
         'shapely': 'shapely',
+        'pandas': 'pandas',
+        'numpy': 'numpy',
     }
     
     for name, import_name in packages.items():
@@ -59,8 +61,24 @@ def test_python_packages():
             mod = __import__(import_name)
             version = getattr(mod, '__version__', 'unknown')
             print(f"✓ {name}: {version}")
-        except ImportError:
-            print(f"✗ {name}: NOT INSTALLED")
+        except ImportError as e:
+            print(f"✗ {name}: NOT INSTALLED - {e}")
+    
+    # Special test for geopandas functionality
+    print("\n--- Testing GeoPandas Functionality ---")
+    try:
+        import geopandas as gpd
+        from shapely.geometry import Point
+        # Create a simple GeoDataFrame
+        gdf = gpd.GeoDataFrame(
+            {'name': ['test']},
+            geometry=[Point(0, 0)],
+            crs='EPSG:4326'
+        )
+        print(f"✓ GeoPandas can create GeoDataFrame")
+        print(f"✓ GeoDataFrame CRS: {gdf.crs}")
+    except Exception as e:
+        print(f"✗ GeoPandas functionality test failed: {e}")
 
 def test_gdal():
     """Test GDAL/OGR installation"""

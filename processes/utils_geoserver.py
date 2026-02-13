@@ -293,12 +293,49 @@ class GS:
         payload = {"featureType": {"name": layer_name}}
         if title:
             payload["featureType"]["title"] = title
+        
+        logging.info(f"Publishing feature type '{layer_name}' in store '{store}'")
         r = requests.post(
             f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes",
             auth=self.auth, headers=self.h_json,
             data=json.dumps(payload), timeout=self.timeout
         )
+        
+        if r.status_code not in [200, 201]:
+            logging.error(f"Failed to publish feature type: {r.status_code} - {r.text}")
         r.raise_for_status()
+        
+        # Verify it was created
+        verify_r = requests.get(
+            f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes/{layer_name}.json",
+            auth=self.auth, timeout=self.timeout
+        )
+        if verify_r.status_code == 200:
+            logging.info(f"✓ Feature type '{layer_name}' verified in GeoServer")
+        else:
+            logging.warning(f"Feature type published but verification failed: {verify_r.status_code}")
+    
+    # ---------- Trigger GeoServer catalog reload ----------
+    def reload_catalog(self):
+        """
+        POST /rest/reload
+        Forces GeoServer to reload its configuration catalog.
+        This can help make newly created resources visible.
+        """
+        try:
+            r = requests.post(
+                f"{self.url}/rest/reload",
+                auth=self.auth, timeout=self.timeout
+            )
+            if r.status_code == 200:
+                logging.info("✓ GeoServer catalog reloaded successfully")
+                return True
+            else:
+                logging.warning(f"Catalog reload returned: {r.status_code}")
+                return False
+        except Exception as e:
+            logging.warning(f"Failed to reload catalog: {e}")
+            return False
     
     # ---------- Explicitly ensure layer resource exists ----------
     def ensure_layer_resource(self, ws, layer_name):
@@ -306,20 +343,48 @@ class GS:
         Explicitly create a layer resource if it doesn't exist.
         Sometimes GeoServer doesn't auto-create the layer when publishing a featureType.
         
-        POST /rest/workspaces/{ws}/layers
-        Body: {"layer":{"name":"<layer_name>","resource":{"name":"<layer_name>"}}}
+        In GeoServer 2.28.x, layers may not be automatically created from feature types.
+        This method ensures the layer exists by checking and creating if necessary.
         """
         # First check if it exists
+        logging.info(f"Checking if layer resource '{layer_name}' exists in workspace '{ws}'...")
         r = requests.get(
             f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}.json",
             auth=self.auth, timeout=self.timeout
         )
         if r.status_code == 200:
-            logging.info(f"Layer resource '{layer_name}' already exists in workspace '{ws}'")
+            logging.info(f"✓ Layer resource '{layer_name}' already exists in workspace '{ws}'")
             return True
+        elif r.status_code == 404:
+            logging.info(f"Layer resource does not exist, will attempt to create it")
+        else:
+            logging.warning(f"Unexpected response checking layer: {r.status_code}")
         
-        # Try to create it - reference the feature type
-        payload = {
+        # Option 1: Try without explicit resource reference (let GeoServer auto-link)
+        # This works better in some GeoServer versions
+        payload_simple = {
+            "layer": {
+                "name": layer_name
+            }
+        }
+        
+        try:
+            logging.info(f"Attempting to create layer resource with simple payload...")
+            r = requests.post(
+                f"{self.url}/rest/workspaces/{ws}/layers",
+                auth=self.auth, headers=self.h_json,
+                data=json.dumps(payload_simple), timeout=self.timeout
+            )
+            if r.status_code in [200, 201]:
+                logging.info(f"✓ Successfully created layer resource for '{layer_name}'")
+                return True
+            else:
+                logging.warning(f"Simple payload failed: {r.status_code} - {r.text}")
+        except Exception as e:
+            logging.warning(f"Simple payload exception: {e}")
+        
+        # Option 2: Try with explicit resource reference
+        payload_detailed = {
             "layer": {
                 "name": layer_name,
                 "resource": {
@@ -329,19 +394,20 @@ class GS:
         }
         
         try:
+            logging.info(f"Attempting to create layer resource with detailed payload...")
             r = requests.post(
                 f"{self.url}/rest/workspaces/{ws}/layers",
                 auth=self.auth, headers=self.h_json,
-                data=json.dumps(payload), timeout=self.timeout
+                data=json.dumps(payload_detailed), timeout=self.timeout
             )
             if r.status_code in [200, 201]:
-                logging.info(f"✓ Explicitly created layer resource for '{layer_name}'")
+                logging.info(f"✓ Successfully created layer resource for '{layer_name}' (detailed payload)")
                 return True
             else:
-                logging.warning(f"Failed to create layer resource: {r.status_code} - {r.text}")
+                logging.error(f"Detailed payload failed: {r.status_code} - {r.text}")
                 return False
         except Exception as e:
-            logging.warning(f"Error creating layer resource: {e}")
+            logging.error(f"Detailed payload exception: {e}")
             return False
 
     # ---------- Check if style exists (optionally in a workspace) ----------
@@ -614,7 +680,9 @@ def publish_gpkg(
             logging.info(f"!-- publish_gpkg: Layer '{ft_name}' already configured, skipping manual publish")
             # Still ensure layer resource exists (belt and suspenders approach)
             time.sleep(0.5)
-            gs.ensure_layer_resource(workspace, ft_name)
+            layer_created = gs.ensure_layer_resource(workspace, ft_name)
+            if not layer_created:
+                logging.warning(f"!-- publish_gpkg: Layer resource could not be verified for pre-configured layer {ft_name}")
             published_layers.append(ft_name)
         else:
             # Manually publish the feature type
@@ -627,11 +695,20 @@ def publish_gpkg(
                 )
                 logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
                 
+                # Trigger a catalog reload to ensure GeoServer recognizes the new feature type
+                # This is especially important for GeoServer 2.28.x
+                gs.reload_catalog()
+                time.sleep(1.0)  # Give GeoServer time to process the reload
+                
                 # CRITICAL: Explicitly ensure layer resource exists
                 # Some GeoServer versions don't auto-create the layer when publishing a featureType
-                time.sleep(0.5)  # Brief delay for feature type to be committed
                 logging.info(f"!-- publish_gpkg: Ensuring layer resource exists for: {ft_name}")
-                gs.ensure_layer_resource(workspace, ft_name)
+                layer_created = gs.ensure_layer_resource(workspace, ft_name)
+                
+                if layer_created:
+                    logging.info(f"!-- publish_gpkg: Layer resource confirmed for {ft_name}")
+                else:
+                    logging.warning(f"!-- publish_gpkg: Could not create/verify layer resource for {ft_name}")
                 
                 published_layers.append(ft_name)
 
@@ -641,14 +718,14 @@ def publish_gpkg(
         
         # Try to set style, but don't fail if it doesn't work
         if style_name:
-            # Add a brief delay to ensure layer resource is registered
+            # Add a delay to ensure layer resource is registered after explicit creation
             time.sleep(0.5)
             
             try:
                 logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
-                # wait_for_layer=True means it will wait up to 5 seconds for the layer to be ready
-                # (reduced from 10 since we explicitly created the layer)
-                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=5)
+                # wait_for_layer=True means it will wait up to 3 seconds for the layer to be ready
+                # (should be quick since we explicitly created it and reloaded the catalog)
+                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=3)
                 logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
                     
             except requests.exceptions.HTTPError as he:
