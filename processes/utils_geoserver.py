@@ -401,7 +401,7 @@ def publish_gpkg(
     workspace='tmp',
     style_name='hexagon_transparant',         # e.g., "hexagon_transparant"
     set_default_style=True,
-    delay_after_upload=1     # seconds; allow GS to scan store
+    delay_after_upload=2     # seconds; allow GS to scan and configure store
 ):
     """
     End-to-end:
@@ -443,13 +443,16 @@ def publish_gpkg(
 
     # Upload GeoPackage to store
     try:
+        # Use configure="first" to auto-configure layers. This ensures GeoServer creates
+        # both the feature type AND the layer resource automatically
         gs.upload_gpkg_datastore(workspace, datastore, gpkg_path,
-                                configure="none", update="overwrite")
+                                configure="first", update="overwrite")
         # The /datastores ... /file.gpkg endpoint accepts the file bytes and
         # creates/updates the file-based store.  # [1](https://docs.geoserver.org/stable/en/user/rest/api/datastores.html)
         
-        # Allow GeoServer time to scan the datastore
+        # Allow GeoServer time to scan and configure the datastore
         time.sleep(delay_after_upload)
+        logging.info(f"!-- publish_gpkg: GPKG uploaded with configure=first, layers should be auto-configured")
     except Exception as e:
         logging.error(f"!-- publish_gpkg: Failed to upload GeoPackage to GeoServer: {e}")
         raise RuntimeError(f"GeoServer upload error: {e}")  
@@ -465,18 +468,46 @@ def publish_gpkg(
 
     deadline = time.time() + timeout
     available = []
+    configured = []
 
+    # First check for configured (already published) feature types
+    # Since we used configure="first", layers might already be published
     while time.time() < deadline:
         try:
-            available = gs.list_available_featuretypes(workspace, datastore)
-            if available:
-                logging.info(f"!-- publish_gpkg: Found available feature types: {available}")
-                break
-        except FailedRequestError:
-            logging.warning("!-- publish_gpkg: GeoServer not ready yet (FailedRequestError), retrying...")
-            pass
-
+            url = f"{geoserver_url}/rest/workspaces/{workspace}/datastores/{datastore}/featuretypes.json"
+            r = requests.get(url, auth=HTTPBasicAuth(username, password), timeout=60)
+            r.raise_for_status()
+            data = r.json()
+            
+            if "featureTypes" in data:
+                ft_data = data["featureTypes"]
+                if isinstance(ft_data, dict) and "featureType" in ft_data:
+                    configured = [ft["name"] for ft in ft_data.get("featureType", []) if ft.get("name")]
+                    if configured:
+                        logging.info(f"!-- publish_gpkg: Found configured feature types: {configured}")
+                        break
+        except Exception as e:
+            logging.warning(f"!-- publish_gpkg: Error checking configured types: {e}")
+        
         time.sleep(scan_interval)
+
+    # If we found configured layers, use those
+    if configured:
+        available = configured
+        logging.info(f"!-- publish_gpkg: Using already configured layers: {available}")
+    else:
+        # Otherwise, check for available (not yet published) feature types
+        while time.time() < deadline:
+            try:
+                available = gs.list_available_featuretypes(workspace, datastore)
+                if available:
+                    logging.info(f"!-- publish_gpkg: Found available feature types: {available}")
+                    break
+            except FailedRequestError:
+                logging.warning("!-- publish_gpkg: GeoServer not ready yet (FailedRequestError), retrying...")
+                pass
+
+            time.sleep(scan_interval)
 
     # Fallback: list configured types if "available" is empty
     if not available:
@@ -521,9 +552,10 @@ def publish_gpkg(
         raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG and could not read from file.")
 
     # -------------------------------------------
-    # 3. Publish each layer
+    # 3. Publish each layer (if not already configured)
     # -------------------------------------------
     published_layers = []
+    layers_already_configured = bool(configured)  # True if we found configured layers above
 
     for ft_name in available:
         # Skip empty or whitespace-only names
@@ -532,24 +564,32 @@ def publish_gpkg(
             continue
         
         ft_name = str(ft_name).strip()
-        logging.info(f"!-- publish_gpkg: Publishing layer: '{ft_name}'")
-        try:
-            gs.publish_featuretype(
-                ws=workspace,
-                store=datastore,
-                layer_name=ft_name
-            )
+        
+        # If layers were already configured (via configure="first"), skip manual publishing
+        if layers_already_configured:
+            logging.info(f"!-- publish_gpkg: Layer '{ft_name}' already configured, skipping manual publish")
             published_layers.append(ft_name)
-            logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
+        else:
+            # Manually publish the feature type
+            logging.info(f"!-- publish_gpkg: Publishing layer: '{ft_name}'")
+            try:
+                gs.publish_featuretype(
+                    ws=workspace,
+                    store=datastore,
+                    layer_name=ft_name
+                )
+                published_layers.append(ft_name)
+                logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
 
-        except Exception as e:
-            logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
-            raise
+            except Exception as e:
+                logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
+                raise
         
         # Try to set style, but don't fail if it doesn't work
         if style_name:
-            # Add a small delay to ensure feature type is committed
-            time.sleep(0.5)
+            # Add a delay to ensure layer resource is fully created
+            # When using configure="first", GeoServer creates layers automatically but needs time
+            time.sleep(1.0)
             
             try:
                 logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
