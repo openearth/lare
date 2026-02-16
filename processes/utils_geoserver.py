@@ -247,6 +247,10 @@ class GS:
         Uses /workspaces/{ws}/datastores/{store}/file.gpkg (PUT)
         to upload the file and (optionally) configure the store.
         See REST 'datastores' endpoints with file/url/external. 
+        
+        Two modes:
+        1. If file is on same server as GeoServer: use file:// URL (faster, more reliable)
+        2. Otherwise: upload bytes (may be async on some GeoServer instances)
         """
         # validate file
         if not os.path.isfile(gpkg_path):
@@ -264,26 +268,56 @@ class GS:
             logging.error(f"GPKG file validation failed: {e}")
             raise RuntimeError(f"Invalid GPKG file: {e}")
 
+        # Try file:// URL approach first (best for local files on same server)
+        # Convert Windows path to file:// URL
+        gpkg_abs_path = os.path.abspath(gpkg_path)
+        
+        # For Windows: file:///C:/path/to/file.gpkg
+        # For Linux: file:///path/to/file.gpkg
+        if os.name == 'nt':  # Windows
+            # Convert C:\path\to\file.gpkg to file:///C:/path/to/file.gpkg
+            file_url = 'file:///' + gpkg_abs_path.replace('\\', '/')
+        else:  # Linux/Unix
+            file_url = 'file://' + gpkg_abs_path
+        
+        logging.info(f"Attempting to create datastore with file URL: {file_url}")
+        
         endpoint = (f"{self.url}/rest/workspaces/{ws}/datastores/{store}"
                     f"/file.gpkg?configure={configure}&update={update}")
-        # NOTE: 'configure' can be: none|all|first|append (depending on version);
-        # we use 'none' then explicitly publish layers.
-        logging.info(f"Uploading to: {endpoint}")
-        with open(gpkg_path, "rb") as f:
-            r = requests.put(endpoint, auth=self.auth,
-                             headers={"Content-Type": "application/octet-stream"},
-                             data=f, timeout=self.timeout)
+        
+        # Use file:// URL with external=true to tell GeoServer to read from filesystem
+        endpoint_with_external = endpoint + "&external=true"
+        
+        logging.info(f"Creating datastore with external file reference: {endpoint_with_external}")
+        
+        # Send the file URL as the body
+        r = requests.put(endpoint_with_external, auth=self.auth,
+                         headers={"Content-Type": "text/plain"},
+                         data=file_url, timeout=self.timeout)
         
         logging.info(f"Upload response: status={r.status_code}, body={r.text[:500] if r.text else 'empty'}")
         
-        # Handle 202 Accepted - GeoServer is processing asynchronously
+        # file:// URL approach should be synchronous (200/201), not async (202)
+        if r.status_code in [200, 201]:
+            logging.info(f"✓ Datastore created successfully using file:// URL")
+            # Verify the datastore was created
+            verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
+            verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
+            if verify_r.status_code == 200:
+                datastore_info = verify_r.json()
+                logging.info(f"Datastore verified: {json.dumps(datastore_info, indent=2)}")
+            else:
+                logging.warning(f"Could not verify datastore: {verify_r.status_code}")
+            return
+        
+        # Handle 202 Accepted - GeoServer is processing asynchronously (shouldn't happen with file:// but handle it)
         if r.status_code == 202:
             logging.info("GeoServer returned 202 Accepted - upload is being processed asynchronously")
             logging.info("Waiting for GeoServer to complete processing the GPKG...")
             
             # Poll the datastore until it's ready (with layers visible)
-            max_wait = 60  # Wait up to 60 seconds for async processing
-            poll_interval = 2
+            max_wait = 120  # Wait up to 120 seconds for async processing (increased from 60)
+            poll_interval = 3  # Check every 3 seconds to reduce load
             start_time = time.time()
             datastore_ready = False
             
@@ -297,14 +331,15 @@ class GS:
                 if verify_r.status_code == 200:
                     datastore_info = verify_r.json()
                     logging.info(f"Datastore accessible after {time.time() - start_time:.1f}s")
+                    logging.info(f"Datastore connection info: {json.dumps(datastore_info.get('dataStore', {}).get('connectionParameters', {}), indent=2)}")
                     
                     # Check if we can list feature types (layers) - this indicates processing is complete
                     try:
+                        # First check for configured feature types
                         ft_check_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes.json"
                         ft_r = requests.get(ft_check_url, auth=self.auth, timeout=self.timeout)
                         if ft_r.status_code == 200:
                             ft_data = ft_r.json()
-                            # Check if there are any feature types configured or available
                             has_layers = False
                             if "featureTypes" in ft_data and ft_data["featureTypes"]:
                                 has_layers = True
@@ -314,8 +349,27 @@ class GS:
                                 datastore_ready = True
                                 logging.info(f"✓ GeoServer finished processing GPKG after {time.time() - start_time:.1f}s")
                                 break
-                            else:
-                                logging.info(f"Datastore exists but no layers yet, continuing to wait...")
+                        
+                        # Also check for available (unconfigured) feature types
+                        # If configure="first" didn't work with async upload, layers might be available but not configured
+                        avail_r = requests.get(
+                            f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes.json",
+                            params={"list": "available"}, 
+                            auth=self.auth, 
+                            timeout=self.timeout
+                        )
+                        if avail_r.status_code == 200:
+                            avail_data = avail_r.json()
+                            if "list" in avail_data and "string" in avail_data["list"]:
+                                available_layers = avail_data["list"]["string"]
+                                if available_layers:
+                                    logging.info(f"✓ Datastore ready with available (unconfigured) layers: {available_layers}")
+                                    datastore_ready = True
+                                    logging.info(f"✓ GeoServer finished processing GPKG after {time.time() - start_time:.1f}s")
+                                    break
+                        
+                        logging.info(f"Datastore exists but no configured or available layers yet (elapsed: {time.time() - start_time:.1f}s), continuing to wait...")
+                        
                     except Exception as e:
                         logging.warning(f"Could not check feature types yet: {e}")
                 else:
