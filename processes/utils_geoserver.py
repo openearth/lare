@@ -264,42 +264,51 @@ class GS:
             import geopandas as gpd
             test_gdf = gpd.read_file(gpkg_path)
             logging.info(f"GPKG verified: {len(test_gdf)} features, CRS: {test_gdf.crs}")
+            
+            # Also verify the file is actually readable as GPKG using fiona/GDAL
+            import fiona
+            layers = fiona.listlayers(gpkg_path)
+            logging.info(f"GPKG contains {len(layers)} layer(s): {layers}")
+            
+            if not layers:
+                raise RuntimeError("GPKG file has no layers!")
+            
+            # Ensure file is fully written and closed - important for network filesystems
+            # Force a sync to disk
+            import subprocess
+            if os.name != 'nt':  # Linux
+                try:
+                    subprocess.run(['sync'], check=False, timeout=5)
+                    logging.info("Forced filesystem sync")
+                except:
+                    pass
+                    
         except Exception as e:
             logging.error(f"GPKG file validation failed: {e}")
             raise RuntimeError(f"Invalid GPKG file: {e}")
 
-        # Try file:// URL approach first (best for local files on same server)
-        # Convert Windows path to file:// URL
-        gpkg_abs_path = os.path.abspath(gpkg_path)
-        
-        # For Windows: file:///C:/path/to/file.gpkg
-        # For Linux: file:///path/to/file.gpkg
-        if os.name == 'nt':  # Windows
-            # Convert C:\path\to\file.gpkg to file:///C:/path/to/file.gpkg
-            file_url = 'file:///' + gpkg_abs_path.replace('\\', '/')
-        else:  # Linux/Unix
-            file_url = 'file://' + gpkg_abs_path
-        
-        logging.info(f"Attempting to create datastore with file URL: {file_url}")
-        
+        # Upload the file bytes directly (like GeoServer UI does)
+        # This is more reliable than file:// URL approach
         endpoint = (f"{self.url}/rest/workspaces/{ws}/datastores/{store}"
                     f"/file.gpkg?configure={configure}&update={update}")
         
-        # Use file:// URL with external=true to tell GeoServer to read from filesystem
-        endpoint_with_external = endpoint + "&external=true"
+        logging.info(f"Uploading GPKG bytes to: {endpoint}")
         
-        logging.info(f"Creating datastore with external file reference: {endpoint_with_external}")
+        # Read and upload the entire file
+        with open(gpkg_path, "rb") as f:
+            file_data = f.read()
         
-        # Send the file URL as the body
-        r = requests.put(endpoint_with_external, auth=self.auth,
-                         headers={"Content-Type": "text/plain"},
-                         data=file_url, timeout=self.timeout)
+        logging.info(f"Read {len(file_data)} bytes from GPKG file, uploading...")
+        
+        r = requests.put(endpoint, auth=self.auth,
+                         headers={"Content-Type": "application/x-sqlite3"},
+                         data=file_data, timeout=self.timeout)
         
         logging.info(f"Upload response: status={r.status_code}, body={r.text[:500] if r.text else 'empty'}")
         
-        # file:// URL approach should be synchronous (200/201), not async (202)
+        # Check response status
         if r.status_code in [200, 201]:
-            logging.info(f"✓ Datastore created successfully using file:// URL")
+            logging.info(f"✓ Datastore created successfully (synchronous response)")
             # Verify the datastore was created
             verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
             verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
@@ -309,8 +318,14 @@ class GS:
             else:
                 logging.warning(f"Could not verify datastore: {verify_r.status_code}")
             return
+        elif r.status_code == 202:
+            logging.info("GeoServer returned 202 Accepted - processing asynchronously")
+            # Continue to async handling
+        else:
+            # Error response
+            r.raise_for_status()
         
-        # Handle 202 Accepted - GeoServer is processing asynchronously (shouldn't happen with file:// but handle it)
+        # Handle 202 Accepted - GeoServer is processing asynchronously
         if r.status_code == 202:
             logging.info("GeoServer returned 202 Accepted - upload is being processed asynchronously")
             logging.info("Waiting for GeoServer to complete processing the GPKG...")
