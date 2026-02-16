@@ -251,16 +251,40 @@ class GS:
         # validate file
         if not os.path.isfile(gpkg_path):
             raise FileNotFoundError(gpkg_path)
+        
+        # Verify GPKG is readable and contains layers
+        file_size = os.path.getsize(gpkg_path)
+        logging.info(f"Uploading GPKG: {gpkg_path} (size: {file_size} bytes)")
+        
+        try:
+            import geopandas as gpd
+            test_gdf = gpd.read_file(gpkg_path)
+            logging.info(f"GPKG verified: {len(test_gdf)} features, CRS: {test_gdf.crs}")
+        except Exception as e:
+            logging.error(f"GPKG file validation failed: {e}")
+            raise RuntimeError(f"Invalid GPKG file: {e}")
 
         endpoint = (f"{self.url}/rest/workspaces/{ws}/datastores/{store}"
                     f"/file.gpkg?configure={configure}&update={update}")
         # NOTE: 'configure' can be: none|all|first|append (depending on version);
         # we use 'none' then explicitly publish layers.
+        logging.info(f"Uploading to: {endpoint}")
         with open(gpkg_path, "rb") as f:
             r = requests.put(endpoint, auth=self.auth,
                              headers={"Content-Type": "application/octet-stream"},
                              data=f, timeout=self.timeout)
+        
+        logging.info(f"Upload response: status={r.status_code}, body={r.text[:500] if r.text else 'empty'}")
         r.raise_for_status()
+        
+        # Verify the datastore was created
+        verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
+        verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
+        if verify_r.status_code == 200:
+            datastore_info = verify_r.json()
+            logging.info(f"Datastore verified: {json.dumps(datastore_info, indent=2)}")
+        else:
+            logging.warning(f"Could not verify datastore: {verify_r.status_code}")
 
     # ---------- List available feature types in a store ----------
     def list_available_featuretypes(self, ws, store):
@@ -467,14 +491,17 @@ class GS:
         return False
 
     # ---------- Set default style on the LAYER (not the featureType) ----------
-    def set_default_style(self, ws, layer_name, style_name, wait_for_layer=True, max_wait=5):
+    def set_default_style(self, ws, layer_name, style_name, wait_for_layer=True, max_wait=5, skip_verification=False):
         """
         PUT /rest/workspaces/{ws}/layers/{layer_name}
         Body: {"layer":{"defaultStyle":{"name":"<style>"}}}
         """
         # First verify the layer exists and is accessible (wait up to max_wait seconds)
-        if wait_for_layer and not self.layer_exists(ws, layer_name, max_wait=max_wait):
-            raise RuntimeError(f"Layer '{layer_name}' does not exist in workspace '{ws}' after waiting")
+        # Can be skipped if layer was just created and verification is unreliable
+        if wait_for_layer and not skip_verification:
+            if not self.layer_exists(ws, layer_name, max_wait=max_wait):
+                logging.warning(f"Layer '{layer_name}' verification failed, but attempting to set style anyway")
+                # Don't raise - try to set style anyway
         
         # Check if style exists - try workspace-specific first, then global
         style_ws = None
@@ -564,6 +591,13 @@ def publish_gpkg(
         # Allow GeoServer time to scan and configure the datastore
         time.sleep(delay_after_upload)
         logging.info(f"!-- publish_gpkg: GPKG uploaded with configure=first, layers should be auto-configured")
+        
+        # Immediately check if GeoServer can see any layers in the datastore
+        try:
+            test_available = gs.list_available_featuretypes(workspace, datastore)
+            logging.info(f"!-- publish_gpkg: Available layers immediately after upload: {test_available}")
+        except Exception as e:
+            logging.warning(f"!-- publish_gpkg: Could not list available layers after upload: {e}")
     except Exception as e:
         logging.error(f"!-- publish_gpkg: Failed to upload GeoPackage to GeoServer: {e}")
         raise RuntimeError(f"GeoServer upload error: {e}")  
@@ -726,14 +760,15 @@ def publish_gpkg(
         
         # Try to set style, but don't fail if it doesn't work
         if style_name:
-            # Add a delay to ensure layer resource is registered after explicit creation
-            time.sleep(1.0)  # Increased for deployment servers
+            # Add a longer delay to ensure layer is fully registered
+            # Deployment servers may take longer to make layers discoverable
+            time.sleep(3.0)  # Increased from 1.0s for deployment servers
             
             try:
                 logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
-                # wait_for_layer=True means it will wait for the layer to be ready
-                # Increased timeout for deployment servers where GeoServer may be slower
-                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=layer_wait_timeout)
+                # Skip verification since it's unreliable on deployment - just try to set the style
+                # Layer should exist since we just created it and reloaded the catalog
+                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=False, skip_verification=True)
                 logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
                     
             except requests.exceptions.HTTPError as he:
