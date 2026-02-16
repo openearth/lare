@@ -275,16 +275,67 @@ class GS:
                              data=f, timeout=self.timeout)
         
         logging.info(f"Upload response: status={r.status_code}, body={r.text[:500] if r.text else 'empty'}")
-        r.raise_for_status()
         
-        # Verify the datastore was created
-        verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
-        verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
-        if verify_r.status_code == 200:
-            datastore_info = verify_r.json()
-            logging.info(f"Datastore verified: {json.dumps(datastore_info, indent=2)}")
+        # Handle 202 Accepted - GeoServer is processing asynchronously
+        if r.status_code == 202:
+            logging.info("GeoServer returned 202 Accepted - upload is being processed asynchronously")
+            logging.info("Waiting for GeoServer to complete processing the GPKG...")
+            
+            # Poll the datastore until it's ready (with layers visible)
+            max_wait = 60  # Wait up to 60 seconds for async processing
+            poll_interval = 2
+            start_time = time.time()
+            datastore_ready = False
+            
+            while time.time() - start_time < max_wait:
+                time.sleep(poll_interval)
+                
+                # Check if datastore is accessible
+                verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
+                verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
+                
+                if verify_r.status_code == 200:
+                    datastore_info = verify_r.json()
+                    logging.info(f"Datastore accessible after {time.time() - start_time:.1f}s")
+                    
+                    # Check if we can list feature types (layers) - this indicates processing is complete
+                    try:
+                        ft_check_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes.json"
+                        ft_r = requests.get(ft_check_url, auth=self.auth, timeout=self.timeout)
+                        if ft_r.status_code == 200:
+                            ft_data = ft_r.json()
+                            # Check if there are any feature types configured or available
+                            has_layers = False
+                            if "featureTypes" in ft_data and ft_data["featureTypes"]:
+                                has_layers = True
+                                logging.info(f"✓ Datastore ready with configured layers: {ft_data}")
+                            
+                            if has_layers:
+                                datastore_ready = True
+                                logging.info(f"✓ GeoServer finished processing GPKG after {time.time() - start_time:.1f}s")
+                                break
+                            else:
+                                logging.info(f"Datastore exists but no layers yet, continuing to wait...")
+                    except Exception as e:
+                        logging.warning(f"Could not check feature types yet: {e}")
+                else:
+                    logging.info(f"Datastore not ready yet (status {verify_r.status_code}), waiting...")
+            
+            if not datastore_ready:
+                logging.error(f"Datastore did not become ready after {max_wait}s")
+                raise RuntimeError(f"GeoServer took too long to process GPKG (timeout after {max_wait}s)")
         else:
-            logging.warning(f"Could not verify datastore: {verify_r.status_code}")
+            # Synchronous response (200, 201, etc.)
+            r.raise_for_status()
+            
+            # Verify the datastore was created
+            verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
+            verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
+            if verify_r.status_code == 200:
+                datastore_info = verify_r.json()
+                logging.info(f"Datastore verified: {json.dumps(datastore_info, indent=2)}")
+            else:
+                logging.warning(f"Could not verify datastore: {verify_r.status_code}")
 
     # ---------- List available feature types in a store ----------
     def list_available_featuretypes(self, ws, store):
