@@ -529,8 +529,9 @@ def publish_gpkg(
     lname = os.path.basename(gpkg_path).replace('.gpkg','')
     datastore = lname
     
-    timeout = 30
+    timeout = 300
     scan_interval = 1
+    layer_wait_timeout = 30  # Wait up to 30 seconds for layers to become available
 
     try:
         gdf = gpd.read_file(gpkg_path)
@@ -594,7 +595,7 @@ def publish_gpkg(
                 if isinstance(ft_data, dict) and "featureType" in ft_data:
                     configured = [ft["name"] for ft in ft_data.get("featureType", []) if ft.get("name")]
                     if configured:
-                        logging.info(f"!-- publish_gpkg: Found configured feature types: {configured}")
+                        logging.info(f"!-- publish_gpkg: Found configured feature types: {configured}, {ft_data.get('featureType', [])}")
                         break
         except Exception as e:
             logging.warning(f"!-- publish_gpkg: Error checking configured types: {e}")
@@ -679,7 +680,7 @@ def publish_gpkg(
         if layers_already_configured:
             logging.info(f"!-- publish_gpkg: Layer '{ft_name}' already configured, skipping manual publish")
             # Still ensure layer resource exists (belt and suspenders approach)
-            time.sleep(0.5)
+            time.sleep(1.5)  # Increased delay for deployment servers
             layer_created = gs.ensure_layer_resource(workspace, ft_name)
             if not layer_created:
                 logging.warning(f"!-- publish_gpkg: Layer resource could not be verified for pre-configured layer {ft_name}")
@@ -698,7 +699,7 @@ def publish_gpkg(
                 # Trigger a catalog reload to ensure GeoServer recognizes the new feature type
                 # This is especially important for GeoServer 2.28.x
                 gs.reload_catalog()
-                time.sleep(1.0)  # Give GeoServer time to process the reload
+                time.sleep(2.0)  # Give GeoServer time to process the reload (increased for deployment)
                 
                 # CRITICAL: Explicitly ensure layer resource exists
                 # Some GeoServer versions don't auto-create the layer when publishing a featureType
@@ -719,13 +720,13 @@ def publish_gpkg(
         # Try to set style, but don't fail if it doesn't work
         if style_name:
             # Add a delay to ensure layer resource is registered after explicit creation
-            time.sleep(0.5)
+            time.sleep(1.0)  # Increased for deployment servers
             
             try:
                 logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
-                # wait_for_layer=True means it will wait up to 3 seconds for the layer to be ready
-                # (should be quick since we explicitly created it and reloaded the catalog)
-                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=3)
+                # wait_for_layer=True means it will wait for the layer to be ready
+                # Increased timeout for deployment servers where GeoServer may be slower
+                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=True, max_wait=layer_wait_timeout)
                 logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
                     
             except requests.exceptions.HTTPError as he:
