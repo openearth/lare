@@ -684,6 +684,13 @@ def publish_gpkg(
             layer_created = gs.ensure_layer_resource(workspace, ft_name)
             if not layer_created:
                 logging.warning(f"!-- publish_gpkg: Layer resource could not be verified for pre-configured layer {ft_name}")
+            
+            # CRITICAL: Reload catalog to make the layer discoverable
+            # Without this, the layer exists but isn't findable via REST API
+            logging.info(f"!-- publish_gpkg: Reloading GeoServer catalog for layer: {ft_name}")
+            gs.reload_catalog()
+            time.sleep(2.0)  # Give GeoServer time to process the reload
+            
             published_layers.append(ft_name)
         else:
             # Manually publish the feature type
