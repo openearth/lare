@@ -615,7 +615,7 @@ def publish_gpkg(
     """
     # Configuration for GeoServer    
     appconfig = read_appyml('app.yml')
-    geoserver_url = appconfig['sdi']['geoserver']['url']
+    geoserver_url = appconfig['sdi']['geoserver']['resturl']
     username = appconfig['sdi']['geoserver']['user']
     password = appconfig['sdi']['geoserver']['password']
     lname = os.path.basename(gpkg_path).replace('.gpkg','')
