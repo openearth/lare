@@ -105,7 +105,7 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
     # Initialize the geoserver
     try:
         geo = Geoserver(
-            appconfig['sdi']['geoserver']['url'],
+            appconfig['sdi']['geoserver']['resturl'],
             username=appconfig['sdi']['geoserver']['user'],
             password=appconfig['sdi']['geoserver']['password'],
         )
