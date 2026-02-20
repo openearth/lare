@@ -129,13 +129,15 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
     if name_field == None:
         name_field = wfs_cfg["name_field"]         # "nuts_name"
 
+    # Quote string literal for CQL; escape single quotes by doubling (CQL/SQL convention)
+    safe_value = str(filtervalue).replace("'", "''")
     params = {
         "service": "WFS",
         "version": "2.0.0",
         "request": "GetFeature",
         "typename": typename,
         "outputFormat": "application/json",
-        "cql_filter": f"{name_field} = {filtervalue}"  # exact match
+        "cql_filter": f"{name_field} = '{safe_value}'"  # exact match, quoted string literal
     }
     
     try:
