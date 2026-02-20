@@ -68,7 +68,7 @@ def mainhandler_region(name):
         logging.info(f'!-- Main handler region: saved geodataframe to geopackage {agpkg}')
     except Exception as e:
         msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
-        return json.dumps({"error": msg}), 0
+        return json.dumps({"error": msg, "suggested_uom": 0})
     
     # function to calculate the suggested size of the unit of measurement based on the area of the region    
     print(f'!-- region metric or not {str(gdf.crs)}, {is_metric_crs(gdf.crs)}')
@@ -97,8 +97,10 @@ def mainhandler_region(name):
         else:
             raise RuntimeError("No layers were published from the geopackage")
         logging.info(f'!-- Main handler region: created viewer output {res}')
-        return res, suggested_uom
+        layers = json.loads(res)
+        merged = {"suggested_uom": suggested_uom, "layers": layers}
+        return json.dumps(merged, indent=2)
     except Exception as e:
         msg = f"Failed to publish geopackage or create viewer output: {str(e)}"
         logging.error(msg)
-        return json.dumps({"error": msg}), 0
+        return json.dumps({"error": msg, "suggested_uom": 0})

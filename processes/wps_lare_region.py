@@ -42,7 +42,7 @@ logging.basicConfig(level=logging.INFO)
 # PyWPS
 from pywps import Process, Format, FORMATS
 from pywps.inout.inputs import LiteralInput
-from pywps.inout.outputs import ComplexOutput, LiteralOutput
+from pywps.inout.outputs import ComplexOutput
 from pywps.app.Common import Metadata
 
 # local
@@ -63,13 +63,9 @@ class WpsLareRegion(Process):
 
 		# Output [in json format]
 		outputs = [ComplexOutput(identifier='output_json',
-						   		 title='Output json', 
-								 abstract='Output json with link to the geoserver layer with the selected region',
-		                         supported_formats=[Format('application/json')]),
-					LiteralOutput(identifier='suggested_uom',
-				   				 abstract='Suggested size of the unit of measurement in m2',
-		                         title='Suggested size of the unit of measurement in m2',
-		                         data_type='integer')]
+						   		 title='Output json',
+								 abstract='Output JSON with link to the Geoserver layer for the selected region and the suggested unit of measurement size in m².',
+		                         supported_formats=[Format('application/json')])]
 
 		super(WpsLareRegion, self).__init__(
 		    self._handler,
@@ -94,12 +90,11 @@ class WpsLareRegion(Process):
 			nutsname = request.inputs.get('nutsname', [])[0].data
 			logging.info(f'!-- wps lare region, create dataframe nuts_name {nutsname}')
 
-			#for now only a message is provided, this should be a list of layers to be loaded
-			res, suggested_uom = mainhandler_region(nutsname)
+			# Single JSON output: layers + suggested_uom
+			res = mainhandler_region(nutsname)
 			response.outputs['output_json'].data = res
-			response.outputs['suggested_uom'].data = str(suggested_uom)
 		except Exception as e:
-			res = { 'errMsg' : 'ERROR: {}'.format(e) }
+			res = {'errMsg': 'ERROR: {}'.format(e), 'suggested_uom': 0}
 			logging.info(f'!-- wps lare {res}')
 			response.outputs['output_json'].data = json.dumps(res)
 		return response
