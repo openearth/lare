@@ -40,9 +40,10 @@ import logging
 # local
 from processes.utils import read_appyml, tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
 from processes.utils_wfs import clipfromwfs_cql
+from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
-from processes.utils_geoserver import load2geoserver, createvieweroutput
+from processes.utils_geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import wfs_filter
@@ -116,6 +117,43 @@ def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
             dst.update_tags(ns='rio_overview', resampling='nearest')
         return clc_hazard
 
+def handler_coastline(sessionid):
+    # find the region from the sessionid, this should be stored in the sessionid
+    # retrieve the geodataframe for the region
+    # clip the coastline from WFS and create a raster from the coastline inland with a certain distance (e.g. 1km, 5km, 10km)
+    # return the wms layer to the front end
+    sessionid = 321546
+    # find region.gpgk from sessionid
+    appconfig = read_appyml('app.yml')
+    geoserver_url = appconfig['ows']['base']
+    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+    sessiondir = os.path.join(tmpdir, str(sessionid))
+    gdfpath = os.path.join(sessiondir, 'region.gpkg')
+    if not os.path.exists(gdfpath):
+        logging.error(f'!-- Coastline handler: unable to find geodataframe for sessionid {sessionid} at path {gdfpath}')
+        return None
+
+    # buffer the gdf with a distance of 100 m
+    gdf = geopandas.read_file(gdfpath)
+    # check crs, this should be a metric system (default to 3035)
+    try:
+        if not is_metric_crs(gdf.crs):
+            gdf = transformgdf(gdf, 3035)
+            msg = f"!-- Coastline handler: defaulting to 3035 successful"
+        else:
+            msg = f"!-- Coastline handler: no transformation necessary"
+        logging.info(f'!-- {msg}')
+    except Exception as e:
+        msg = f"!-- Coastline handler: transformation to 3035 failed"
+        logging.error(f'!-- {msg}')
+
+    bufgdf = gdf.copy()
+    bufgdf["geometry"] = gdf.buffer(100)
+    bufgdf.set_geometry("geometry", inplace=True)
+    bufgdf.to_file(os.path.join(sessiondir, 'buffer.gpkg'), driver='GPKG')  
+    coastlinegdf = filtervectorbyvector(geoserver_url, bufgdf, 3035, 'coastline', 3035)
+    coastlinegdf.to_file(os.path.join(sessiondir, 'coastline.gpkg'), driver='GPKG')
+    
 
 def handler_clc(gdf,hazard=None):
     """Based on the geodataframe and the specified hazard at least 2 rasters will be created. 
@@ -244,7 +282,6 @@ def mainhandler(name):
     logging.info(f'!-- EUNIS clipped and saved for {name}. Possible message {msg}')
 
     # TODO: provide front end with correct, not sure yet what is needed.
-
 
 def mainhandler_hazard(name, hazard):
     """

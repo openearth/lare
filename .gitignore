@@ -13,6 +13,7 @@ templates/
 wps_ri2de*.py
 ri2de_.json
 *.tif
+wps_test*.py
 
 # vim, mac os
 *.sw*

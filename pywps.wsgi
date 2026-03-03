@@ -44,9 +44,11 @@ from processes.wps_lare_hazard import WpsLareHazard
 from processes.wps_lare_uom import WpsLareUoM
 from processes.wps_lare_kcs import WpsLareKCS
 from processes.wps_lare_region import WpsLareRegion
+from processes.wps_lare_start import WpsStart
 
 # LARE processes
 processes = [
+    WpsStart(),
     WpsLareLandscape(),
     WpsLareHazard(),
     WpsLareUoM(),
