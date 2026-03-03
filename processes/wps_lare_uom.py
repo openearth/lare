@@ -28,6 +28,7 @@
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
 # http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=sessionid=1772550772282953;uomsize=1000;layername=hydro:hybas_eu_lev12_v1c;id=2120048760;
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
 # https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
@@ -60,11 +61,11 @@ class WpsLareUoM(Process):
 		# Input [in json format ]
 		inputs = [
 			LiteralInput(
-                identifier='nutsname',
-                title='Name of the level 3 nuts regions',
-                abstract='String identifying the nutsregion, level 3',
+                identifier='sessionid',
+                title='Session ID',
+                abstract='String identifying the LARE session',
                 data_type='string',
-                keywords=['nuts region', 'name', 'common name']
+                keywords=['session', 'identifier']
             ),
             LiteralInput(
                 identifier='uomsize',
@@ -72,7 +73,21 @@ class WpsLareUoM(Process):
                 abstract='Integer size of the hexagon in square meters',
                 data_type='integer',
 				keywords=['uom','unit of measurement']
-            )]
+            ),
+			LiteralInput(
+				identifier='layername',
+				title='layername ',
+				abstract='String identifying the full workspace layername from a dataservice',
+				data_type='string',
+				keywords=['dataset', 'dataservice']
+			),
+			LiteralInput(
+				identifier='id',
+				title='id of the dataset, e.g. name of the region or basin',
+				abstract='String identifying the dataset id, e.g. name of the region or basin',
+				data_type='string',
+				keywords=['dataset', 'id']
+				)]
 
 		# Output [in json format]
 		outputs = [ComplexOutput('output_json',
@@ -99,12 +114,14 @@ class WpsLareUoM(Process):
 		logging.info(f'!-- wps lare before try')
 		try:		
 			# call mainhandler
-			nutsname = request.inputs.get('nutsname', [])[0].data
-			area     = request.inputs.get('uomsize', [])[0].data
-			logging.info(f'!-- wps lare hazard create uon for nuts_name {nutsname} with size {str(area)}')
+			sessionid = request.inputs.get('sessionid', [])[0].data
+			uomsize   = request.inputs.get('uomsize', [])[0].data
+			layername   = request.inputs.get('layername',[])[0].data
+			id        = request.inputs.get('id',[])[0].data
+			logging.info(f'!-- wps lare hazard create uon for layername {layername} with size {str(uomsize)} for id {id}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			res = mainhandler_uom(nutsname, area)
+			res = mainhandler_uom(sessionid, uomsize,layername,id)
 			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }

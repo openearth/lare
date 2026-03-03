@@ -95,7 +95,7 @@ def hexgrid_within(gdf, area):
     return gpd.GeoDataFrame(geometry=hexes, crs=gdf.crs)
 
 
-def mainhandler_uom(name, area):
+def mainhandler_uom(sessionid, uomsize,layername,id):
         
     msg = None
 
@@ -103,14 +103,27 @@ def mainhandler_uom(name, area):
     appconfig = read_appyml('app.yml')    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
     wmsurl = appconfig['sdi']['geoserver']['url']
+    print(layername,id)
+    name_field = appconfig['layers']['datasets'].get(layername)
+    if not name_field:
+        msg = f"Layername {layername} not found in appconfig"
+        return json.dumps(msg)
 
     try:
-        gdf = clipfromwfs_cql(name,'app.yml')
+        gdf = clipfromwfs_cql(id,'app.yml',name_field,typename=layername)
         logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
     except Exception as e:
-        msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
+        msg = f'Clipping geodataframe using regionname {id} failed with following error {str(e)}'
         return json.dumps(msg)
     
+    # based on sessionid filepath is there
+    sessiondir = os.path.join(tmpdir, sessionid)
+    if not os.path.exists(sessiondir):
+        msg = f'Session directory {sessiondir} not found'
+        logging.error(msg)
+        return json.dumps(msg)
+
+
     # check crs, this should be a metric system (default to 3035)
     try:
         if not is_metric_crs(gdf.crs):
@@ -118,18 +131,19 @@ def mainhandler_uom(name, area):
             msg = f"!-- Main handler uom: defaulting to 3035 successful"
         else:
             msg = f"!-- Main handler uom: no transformation necessary"
+        gdf.to_file(os.path.join(sessiondir,'region.gpkg'), driver="GPKG")
         logging.info(f'!-- {msg}')
     except Exception as e:
         msg = f"!-- Main handler uom: transformation to 3035 failed"
         logging.error(f'!-- {msg}')
-    logging.info(f'!-- Area of {name} is {gdf.area.sum()}')
+    logging.info(f'!-- Area of {name_field} is {gdf.area.sum()}')
 
     try:
         # create tempfile
-        hexgrid = tempfile(tmpdir,'hexagons_','.gpkg')
+        hexgrid = os.path.join(sessiondir,'hexagons.gpkg')
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
         # create hexagons based on the passed square meters
-        hexgdf = hexgrid_within(gdf, area)
+        hexgdf = hexgrid_within(gdf, uomsize)
         hexgdf.to_file(hexgrid, driver="GPKG")
 
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
