@@ -32,6 +32,12 @@
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
 # https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
 
+
+# todo:
+# - switch for hydrobasin or nuts region
+# - as output add sessionid
+
+
 # other
 import os
 import json
