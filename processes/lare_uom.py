@@ -41,7 +41,7 @@ import numpy as np
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, createvieweroutput
+from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS
 
 # from utils import read_appyml, tempfile
 # from utils_wfs import clipfromwfs_cql
@@ -96,8 +96,6 @@ def hexgrid_within(gdf, area):
 
 
 def mainhandler_uom(sessionid, uomsize,layername,id):
-        
-    msg = None
 
     # check if hazard provided is listed in the list of hazards
     appconfig = read_appyml('app.yml')    
@@ -107,8 +105,8 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
     
     name_field = appconfig['layers']['datasets'].get(layername)
     if not name_field:
-        msg = f"Layername {layername} not found in appconfig"
-        return json.dumps(msg)
+        error_msg = f"Layername {layername} not found in appconfig"
+        return json.dumps({'error': error_msg})
     
     try:
         gdf = clipfromwfs_cql(id,'app.yml',url=wfs_url, name_field=name_field,typename=layername)
@@ -116,29 +114,29 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
             return json.dumps({'error': f'No features found for {layername} with id={id}'})
         logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
     except Exception as e:
-        msg = f'Clipping geodataframe using regionname {id} failed with following error {str(e)}'
-        return json.dumps(msg)
+        error_msg = f'Clipping geodataframe using regionname {id} failed with following error {str(e)}'
+        return json.dumps({'error': error_msg})
     
     # based on sessionid filepath is there
     sessiondir = os.path.join(tmpdir, sessionid)
     if not os.path.exists(sessiondir):
-        msg = f'Session directory {sessiondir} not found'
-        logging.error(msg)
-        return json.dumps(msg)
+        error_msg = f'Session directory {sessiondir} not found'
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
 
 
     # check crs, this should be a metric system (default to 3035)
     try:
         if not is_metric_crs(gdf.crs):
             gdf = transformgdf(gdf, 3035)
-            msg = f"!-- Main handler uom: defaulting to 3035 successful"
+            logging.info("!-- Main handler uom: defaulting to 3035 successful")
         else:
-            msg = f"!-- Main handler uom: no transformation necessary"
+            logging.info("!-- Main handler uom: no transformation necessary")
         gdf.to_file(os.path.join(sessiondir,'region.gpkg'), driver="GPKG")
-        logging.info(f'!-- {msg}')
     except Exception as e:
-        msg = f"!-- Main handler uom: transformation to 3035 failed"
-        logging.error(f'!-- {msg}')
+        error_msg = f"!-- Main handler uom: transformation to 3035 failed: {str(e)}"
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
     logging.info(f'!-- Area of {name_field} is {gdf.area.sum()}')
 
     try:
@@ -151,14 +149,30 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
 
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
     except Exception as e:
-        msg = f"!-- Main handler uom: Creation of hexagrid for {name_field} failed with error: {str(e)}"
-        logging.error(msg)
+        error_msg = f"!-- Main handler uom: Creation of hexagrid for {name_field} failed with error: {str(e)}"
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
         
     
     # load the data into geoserver
     try:
+        # Clean up old layer and datastore before publishing new one
+        store_name = f'hexagons_{sessionid}'
+        try:
+            gs = GS(geoserver_url.replace('/ows', ''), 
+                   appconfig['sdi']['geoserver']['user'],
+                   appconfig['sdi']['geoserver']['password'])
+            # Try to delete old datastore (with recursive=True to delete all layers within it)
+            logging.info(f'!-- Attempting to clean up old datastore: {store_name}')
+            gs.delete_layer_and_store('tmp', store_name)
+        except Exception as cleanup_err:
+            logging.warning(f'!-- Cleanup of old datastore failed (may not exist): {str(cleanup_err)}')
+        
+        # Now publish the new GeoPackage
         wmslay = publish_gpkg(hexgrid)
-        res = createvieweroutput([wmslay], 'Unit of Measurement', {'uom':'Unit of Measurement'}, geoserver_url)
+        res = createvieweroutput(wmslay, 'Unit of Measurement', {'uom':'Unit of Measurement'}, geoserver_url)
         return res
     except Exception as e:
-        return json.dumps(msg)
+        error_msg = f"!-- Main handler uom: Failed to publish hexagrid to GeoServer: {str(e)}"
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})

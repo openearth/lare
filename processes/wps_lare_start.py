@@ -26,10 +26,10 @@
 # your own tools.
 
 # example requests
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=wps_start
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_start
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
-# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=wps_test&datainputs=sessionid='12345'
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_start
 
 
 # todo:

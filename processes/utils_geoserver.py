@@ -597,6 +597,66 @@ class GS:
             logging.error(f"Request payload: {json.dumps(payload)}")
         r.raise_for_status()
 
+    def delete_layer(self, ws, layer_name):
+        """Delete a layer from a workspace.
+        
+        Args:
+            ws (str): workspace name
+            layer_name (str): layer name to delete
+        """
+        try:
+            url = f"{self.url}/rest/workspaces/{ws}/layers/{layer_name}"
+            r = requests.delete(url, auth=self.auth, timeout=self.timeout)
+            if r.status_code == 204:  # No Content = success
+                logging.info(f"✓ Layer '{layer_name}' deleted from workspace '{ws}'")
+                return True
+            elif r.status_code == 404:
+                logging.warning(f"Layer '{layer_name}' not found in workspace '{ws}' (already deleted?)")
+                return True  # Treat as success since it's gone anyway
+            else:
+                logging.error(f"Failed to delete layer '{layer_name}': {r.status_code} - {r.text}")
+                return False
+        except Exception as e:
+            logging.error(f"Exception deleting layer '{layer_name}': {str(e)}")
+            return False
+
+    def delete_datastore(self, ws, store_name, recursive=True):
+        """Delete a datastore from a workspace.
+        
+        Args:
+            ws (str): workspace name
+            store_name (str): datastore name to delete
+            recursive (bool): if True, delete the datastore even if it has layers
+        """
+        try:
+            url = f"{self.url}/rest/workspaces/{ws}/datastores/{store_name}"
+            if recursive:
+                url += "?recurse=true"
+            
+            r = requests.delete(url, auth=self.auth, timeout=self.timeout)
+            if r.status_code == 204:  # No Content = success
+                logging.info(f"✓ Datastore '{store_name}' deleted from workspace '{ws}'")
+                return True
+            elif r.status_code == 404:
+                logging.warning(f"Datastore '{store_name}' not found in workspace '{ws}' (already deleted?)")
+                return True  # Treat as success since it's gone anyway
+            else:
+                logging.error(f"Failed to delete datastore '{store_name}': {r.status_code} - {r.text}")
+                return False
+        except Exception as e:
+            logging.error(f"Exception deleting datastore '{store_name}': {str(e)}")
+            return False
+
+    def delete_layer_and_store(self, ws, store_name):
+        """Delete both the datastore and its associated layers.
+        
+        Args:
+            ws (str): workspace name
+            store_name (str): datastore/store name to clean up
+        """
+        # First delete the datastore recursively (which will remove all layers)
+        return self.delete_datastore(ws, store_name, recursive=True)
+
 
 def publish_gpkg(
     gpkg_path,
