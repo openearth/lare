@@ -27,10 +27,10 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=name='Menorca';kcs=transport;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=sessionid=1772550772282953;kcs=transport;hazard=fire_17701219335645576
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
-# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&lare_kcs&datainputs=name='Menorca';kcs=transport;uom=hexagons_17700414502090948;hazard=fire_17701219335645576
+# https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&lare_kcs&datainputs=sessionid=1772550772282953;kcs=transport;hazard=fire_17701219335645576
 
 # other
 import os
@@ -54,11 +54,11 @@ class WpsLareKCS(Process):
 		# Input [in json format ]
 		inputs = [
 			LiteralInput(
-                identifier='name',
-                title='Name of nuts region',
-                abstract='String identifying the nuts region',
+                identifier='sessionid',
+                title='Session ID',
+                abstract='String identifying the session ID of the LARE process',
                 data_type='string',
-                keywords=['nuts', 'region']
+                keywords=['session', 'identifier']
             ),
 			LiteralInput(
                 identifier='kcs',
@@ -66,13 +66,6 @@ class WpsLareKCS(Process):
                 abstract='String identifying the Key Community System',
                 data_type='string',
                 keywords=['KCS', 'Key Community System', 'population','schools','elderlyhomes', 'hospitals','roads']
-            ),
-            LiteralInput(
-                identifier='uom',
-                title='uom layer identifier',
-                abstract='Name of the hexagon file created in previous step',
-                data_type='string',
-				keywords=['uom','unit of measurement','layername']
             ),
 			LiteralInput(
                 identifier='hazard',
@@ -107,15 +100,14 @@ class WpsLareKCS(Process):
 		logging.info(f'!-- wps lare before try')
 		try:		
 			# call mainhandler
-			name     = request.inputs.get('name', [])[0].data
-			kcs      = request.inputs.get('kcs', [])[0].data
-			uomlayer = request.inputs.get('uom', [])[0].data
-			hazardlr = request.inputs.get('hazard', [])[0].data
-			logging.info(f'!-- wps lare hazard create uon for nuts_name {name}')
+			sessionid = request.inputs.get('sessionid', [])[0].data
+			kcs       = request.inputs.get('kcs', [])[0].data
+			hazardlr  = request.inputs.get('hazard', [])[0].data
+			logging.info(f'!-- wps lare hazard create uon for sessionid {sessionid}')
 			logging.info(f'!-- wps lare hazard create uon for kcs {kcs}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			res = mainhandler_uomkcs(name, kcs, uomlayer, hazardlr)
+			res = mainhandler_uomkcs(sessionid, kcs, hazardlr)
 			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }

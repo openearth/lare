@@ -29,6 +29,7 @@
 import os
 import json
 import yaml
+import shutil
 from collections import defaultdict
 import logging
 
@@ -61,7 +62,14 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
     # Check the CRS of both datasets
     print("CRS of outkcs:", outkcs.crs)
 
-    uom = gpd.read_file(uomgpkg,engine='pyogrio')
+    import fiona
+
+    layer_names = fiona.listlayers(uomgpkg)
+    if not layer_names:
+        raise RuntimeError(f"No layers found in {uomgpkg}")
+    uom_layer = layer_names[0]
+
+    uom = gpd.read_file(uomgpkg, layer=uom_layer, engine='pyogrio')
     print("CRS of uomgpkg:", uom.crs)
 
     # Reproject if necessary
@@ -73,6 +81,13 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
 
     # Perform the spatial join
     aggregated = gpd.sjoin(outkcs, uom, how="inner", predicate='intersects')
+    
+    logging.info(f"!-- aggregate_kcs_uom: After sjoin, columns available: {list(aggregated.columns)}")
+
+    # Ensure 'length' column exists in aggregated result (sjoin might have dropped it)
+    if 'length' not in aggregated.columns:
+        logging.warning(f"!-- aggregate_kcs_uom: 'length' column not found after sjoin, will try to recalculate from geometry")
+        aggregated['length'] = aggregated.geometry.length
 
     # Aggregate the data by summing the lengths
     aggregated = aggregated.groupby('index_right').agg({
@@ -82,20 +97,26 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
     # Fill missing values with 0
     aggregated['length'] = aggregated['length'].fillna(0)
 
-    # Merge back with the original hexagons to get the aggregated data
-    result = uom.merge(aggregated, left_index=True, right_on='index_right', how='left')
+    # Add aggregated statistic as attribute to existing hexagon features
+    result = uom.copy()
+    length_by_cell = aggregated.set_index('index_right')['length']
+    
+    # Check if 'length' attribute exists, create it if not (in double precision)
+    if 'length' not in result.columns:
+        result['length'] = np.float64(0)
+    
+    # Update length values with aggregated statistics, ensure double precision
+    result['length'] = result.index.map(length_by_cell).fillna(0).astype(np.float64)
 
-    # Fill missing values with 0 in the result
-    result['length'] = result['length'].fillna(0)
-    # Save the result to a new GeoPackage
-    agg_uomkcs = tempfile(tmpdir,'agg_uomkcs_','.gpkg')
-    result.to_file(agg_uomkcs, layer='aggregated_hexagons', driver='GPKG')
+    # Save back to the same existing layer (overwrite layer contents, keep same layer entry)
+    result.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
 
-    print("Aggregation complete. Result saved to 'aggregated_uomgpkg.gpkg'.")
+    print("Aggregation complete. Result written to UoM GeoPackage.")
+    return uomgpkg
 
 
 
-def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
+def mainhandler_uomkcs(sessionid, kcs, hazardlr):
         
     msg = None
 
@@ -107,14 +128,19 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
 
     # find the layer defined for hazard as well as uomlayer
     # take into account the crs
+    tmpdir = os.path.join(tmpdir, sessionid)
+    if not os.path.exists(tmpdir):
+        error_msg = f'Session directory {tmpdir} not found'
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
     try:
-        uomgpkg = os.path.join(tmpdir,uomlayer+'.gpkg')
+        uomgpkg = os.path.join(tmpdir,f'hexagons_{sessionid}.gpkg')
         if not os.path.isfile(uomgpkg):
             logging.error(f'Layer with Unit of Measurements {uomgpkg} not found')
         else:
             logging.info(f'{uomgpkg} found and used in further process') 
     except Exception as e:
-        logging.error(f'Failed to find {uomlayer} geopackage')
+        logging.error(f'Failed to find {uomgpkg} geopackage')
 
     # similar for hazard layer.
     try:
@@ -128,18 +154,16 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
 
 
     # the name or even the gdf is not stored anywhere, this could be an improvement
-    logging.info("----!!! Derive GeodataFram using: {}".format(name))
-    
-    try:
-        gdf = clipfromwfs_cql(name,'app.yml')
-        msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
-    except Exception as e:
-        msg = f'nothing found for {name}, {e}'
-        return None
-    print(msg)
+    logging.info("----!!! Derive GeodataFrame using: {}".format(sessionid))
+    regionfile = os.path.join(tmpdir,'region.gpkg')
+    gdf = gpd.read_file(regionfile)
+    logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
 
+    # first find out what datatype KCS is, for rasters we need a different approach 
+    # than for vector data, because of the aggregation step to the hexagons. 
+    # For raster data we can directly cut the raster to the region of interest, 
+    # for vector data we need to do a spatial join and aggregate the intersecting geometries to the hexagons.
 
-    # first find out what datatype KCS is
     dctkcs = appconfig['layers']['kcs']
     datatype = None
     for k in dctkcs.keys():
@@ -151,18 +175,23 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
             logging.info(msg)
     if datatype == None:
         msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} not found'
-        return json.dump(msg)
+        return json.dumps({'error': msg})
 
 
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
+    agguomkcs_publish = None
+
     try:
         if datatype == 'raster':
-            outkcs = lare_raster(gdf, 4326, kcs)
+            outkcs = lare_raster(gdf, gdf.crs, kcs)
         elif datatype == 'vector':
-            outkcs = filtervectorbyvector(geoserver_url,gdf,4326,kcslayer,4326)
+            outkcs = filtervectorbyvector(geoserver_url,gdf,gdf.crs,kcslayer,4326)
             # TODO aggregate the outkcs to the uomgpkg
             agguomkcs = aggregate_kcs_uom(outkcs,uomgpkg,tmpdir)
             logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
+            # Republish using a new GeoPackage name so GeoServer gets a new datastore/layer
+            agguomkcs_publish = os.path.join(tmpdir, f'hexagons_{sessionid}.gpkg')
+            shutil.copyfile(agguomkcs, agguomkcs_publish)
         if outkcs != None:
 
             logging.info(f'{kcs} clipped and ready for use as {outkcs}') 
@@ -170,9 +199,12 @@ def mainhandler_uomkcs(name, kcs, uomlayer, hazardlr):
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
 
     # load the data into geoserver and return to WPS.
+    layer_name = f'hexagons_{sessionid}_{kcs}'
     try:
-        wmslay = publish_gpkg(agguomkcs)
-        res = createvieweroutput([wmslay], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
+        if not agguomkcs_publish:
+            return json.dumps({'error': 'Aggregated KCS GeoPackage not available for publishing'})
+        wmslay = publish_gpkg(agguomkcs_publish, style_name='transport_density',republish=True, layer_name=layer_name)
+        res = createvieweroutput(wmslay, 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
         return res
     except Exception as e:
-        return json.dumps(msg)
+        return json.dumps({'error': str(e)})

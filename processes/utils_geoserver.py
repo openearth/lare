@@ -374,7 +374,7 @@ class GS:
         return names
 
     # ---------- Publish a feature type ----------
-    def publish_featuretype(self, ws, store, layer_name, title=None):
+    def publish_featuretype(self, ws, store, layer_name, title=None, native_name=None):
         """
         POST /workspaces/{ws}/datastores/{store}/featuretypes
         Body: {"featureType":{"name":"<layer_name>","title":"..."}}
@@ -382,6 +382,8 @@ class GS:
         payload = {"featureType": {"name": layer_name}}
         if title:
             payload["featureType"]["title"] = title
+        if native_name:
+            payload["featureType"]["nativeName"] = native_name
         
         logging.info(f"Publishing feature type '{layer_name}' in store '{store}'")
         r = requests.post(
@@ -403,6 +405,31 @@ class GS:
             logging.info(f"✓ Feature type '{layer_name}' verified in GeoServer")
         else:
             logging.warning(f"Feature type published but verification failed: {verify_r.status_code}")
+
+    # ---------- Delete a feature type ----------
+    def delete_featuretype(self, ws, store, layer_name):
+        """Delete a feature type from a datastore.
+
+        Args:
+            ws (str): workspace name
+            store (str): datastore name
+            layer_name (str): feature type name to delete
+        """
+        try:
+            url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}/featuretypes/{layer_name}"
+            r = requests.delete(url, auth=self.auth, timeout=self.timeout)
+            if r.status_code == 204:
+                logging.info(f"✓ Feature type '{layer_name}' deleted from store '{store}'")
+                return True
+            elif r.status_code == 404:
+                logging.warning(f"Feature type '{layer_name}' not found in store '{store}' (already deleted?)")
+                return True
+            else:
+                logging.error(f"Failed to delete feature type '{layer_name}': {r.status_code} - {r.text}")
+                return False
+        except Exception as e:
+            logging.error(f"Exception deleting feature type '{layer_name}': {str(e)}")
+            return False
     
     # ---------- Trigger GeoServer catalog reload ----------
     def reload_catalog(self):
@@ -663,7 +690,10 @@ def publish_gpkg(
     workspace='tmp',
     style_name='hexagon_transparant',         # e.g., "hexagon_transparant"
     set_default_style=True,
-    delay_after_upload=2     # seconds; allow GS to scan and configure store
+    delay_after_upload=2,     # seconds; allow GS to scan and configure store
+    republish=False,
+    datastore_name=None,
+    layer_name=None
 ):
     """
     End-to-end:
@@ -679,7 +709,7 @@ def publish_gpkg(
     username = appconfig['sdi']['geoserver']['user']
     password = appconfig['sdi']['geoserver']['password']
     lname = os.path.basename(gpkg_path).replace('.gpkg','')
-    datastore = lname
+    datastore = datastore_name or lname
     
     timeout = 300
     scan_interval = 1
@@ -807,31 +837,45 @@ def publish_gpkg(
             continue
         
         ft_name = str(ft_name).strip()
+
+        if layer_name:
+            if len(available) == 1:
+                publish_name = layer_name
+            else:
+                publish_name = f"{layer_name}_{ft_name}"
+        else:
+            publish_name = ft_name
+
+        if republish:
+            logging.info(f"!-- publish_gpkg: Republish enabled, deleting existing layer/feature type '{publish_name}'")
+            gs.delete_layer(workspace, publish_name)
+            gs.delete_featuretype(workspace, datastore, publish_name)
         
         # Manually publish the feature type
-        logging.info(f"!-- publish_gpkg: Publishing layer: '{ft_name}'")
+        logging.info(f"!-- publish_gpkg: Publishing layer: '{publish_name}' (native: '{ft_name}')")
         try:
             gs.publish_featuretype(
                 ws=workspace,
                 store=datastore,
-                layer_name=ft_name
+                layer_name=publish_name,
+                native_name=ft_name if publish_name != ft_name else None
             )
-            logging.info(f"!-- publish_gpkg: Successfully published feature type: {ft_name}")
+            logging.info(f"!-- publish_gpkg: Successfully published feature type: {publish_name}")
             
             # Trigger a catalog reload to ensure GeoServer recognizes the new feature type
             gs.reload_catalog()
             time.sleep(2.0)  # Give GeoServer time to process the reload
             
             # Explicitly ensure layer resource exists
-            logging.info(f"!-- publish_gpkg: Ensuring layer resource exists for: {ft_name}")
-            layer_created = gs.ensure_layer_resource(workspace, ft_name)
+            logging.info(f"!-- publish_gpkg: Ensuring layer resource exists for: {publish_name}")
+            layer_created = gs.ensure_layer_resource(workspace, publish_name)
             
             if layer_created:
                 logging.info(f"!-- publish_gpkg: Layer resource confirmed for {ft_name}")
             else:
                 logging.warning(f"!-- publish_gpkg: Could not create/verify layer resource for {ft_name}")
             
-            published_layers.append(ft_name)
+            published_layers.append(publish_name)
 
         except Exception as e:
             logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
@@ -844,16 +888,16 @@ def publish_gpkg(
             time.sleep(3.0)  # Increased from 1.0s for deployment servers
             
             try:
-                logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {ft_name}")
+                logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {publish_name}")
                 # Skip verification since it's unreliable on deployment - just try to set the style
                 # Layer should exist since we just created it and reloaded the catalog
-                gs.set_default_style(workspace, ft_name, style_name, wait_for_layer=False, skip_verification=True)
-                logging.info(f"!-- publish_gpkg: Successfully set style for {ft_name}")
+                gs.set_default_style(workspace, publish_name, style_name, wait_for_layer=False, skip_verification=True)
+                logging.info(f"!-- publish_gpkg: Successfully set style for {publish_name}")
                     
             except requests.exceptions.HTTPError as he:
-                logging.warning(f"!-- publish_gpkg: HTTP error setting style for {ft_name}: {he}. Response: {he.response.text if hasattr(he, 'response') and he.response else 'No response'}. Layer is published but without style.")
+                logging.warning(f"!-- publish_gpkg: HTTP error setting style for {publish_name}: {he}. Response: {he.response.text if hasattr(he, 'response') and he.response else 'No response'}. Layer is published but without style.")
             except Exception as e:
-                logging.warning(f"!-- publish_gpkg: Failed to set style for {ft_name}: {e}. Layer is published but without style.")
+                logging.warning(f"!-- publish_gpkg: Failed to set style for {publish_name}: {e}. Layer is published but without style.")
 
     logging.info(f"!-- publish_gpkg: Successfully published layers: {published_layers}")
     return published_layers
@@ -907,20 +951,17 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
     # Define the URL and layers
     try:
         if filter_crs != kcs_crs:
-            # Define the CRS transformer
-            project = Transformer.from_crs(filter_crs, kcs_crs, always_xy=True)
-
-            # Transform the NUTS region geometry to CRS 4326
-            nuts_geom = filtergdf.geometry.apply(lambda geom: transform(project.transform, geom))
-
-            # Create a GeoDataFrame from the transformed geometry
-            nuts_gdf = gpd.GeoDataFrame(geometry=nuts_geom, crs=CRS.from_epsg(kcs_crs))
+            # Use GeoPandas to_crs for proper CRS transformation
+            nuts_gdf = filtergdf.to_crs(epsg=kcs_crs)
+            logging.info(f'!--- filtering vector data: filtergdf converted to {kcs_crs}')
         else:
             nuts_gdf = filtergdf
         wkt_representation = dumps(nuts_gdf.geometry.iloc[0])
-        logging.info(f'!--- filtering vector data: filtergdf converted to {kcs_crs}')
+        logging.info(f'!--- filtering vector data: filtergdf as wkt {wkt_representation}')
+        
     except Exception as e:
         logging.error(f'! -- filtering vector data: transformer failed with {str(e)}')
+        return None
 
     
     # Get the roads within the NUTS region
@@ -939,10 +980,12 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
         logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf')
     except GeoserverException as ge:
         logging.error(f'! -- filtering vector data failed with Geoserverexception {ge}')
+        return None
     except Exception as e:
         logging.error(f'! -- filtering vector data with nuts_gdf failed with {e}')
+        return None
     
     # Create a GeoDataFrame from the roads data
     kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(4326))
-    logging.info('!--- filtering vector data: {kcslayer} filtered by filtergdf')
+    logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf')
     return kcs_gdf
