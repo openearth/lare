@@ -38,10 +38,41 @@ import requests
 from io import BytesIO
 import geopandas as gpd
 import logging
+import re
+from owslib.fes import PropertyIsLike, And
+from owslib.wfs import WebFeatureService
+from owslib.etree import etree as ET
 
 # from processes.utils import *
 from processes.utils import read_appyml
 logging.basicConfig(level=logging.INFO)
+
+
+def _is_numeric_literal(value):
+    """Return True when value can be safely used as an unquoted numeric CQL literal."""
+    if isinstance(value, (int, float)):
+        return True
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    return bool(re.fullmatch(r"-?\d+(\.\d+)?", stripped))
+
+
+def _to_cql_literal(value):
+    """Convert Python value to a safe CQL literal, stripping any existing quotes."""
+    # First, strip any existing surrounding quotes (single or double)
+    str_value = str(value).strip()
+    if (str_value.startswith("'") and str_value.endswith("'")) or \
+       (str_value.startswith('"') and str_value.endswith('"')):
+        str_value = str_value[1:-1]
+    
+    # Check if numeric (after quote removal)
+    if _is_numeric_literal(str_value):
+        return str_value
+    
+    # Quote and escape for CQL string literal
+    safe_value = str_value.replace("'", "''")
+    return f"'{safe_value}'"
 
 # from utils import read_appyml
 def wfs_filter(app_cfg_path="app.yml",
@@ -129,23 +160,40 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
     if name_field == None:
         name_field = wfs_cfg["name_field"]         # "nuts_name"
 
-    # Quote string literal for CQL; escape single quotes by doubling (CQL/SQL convention)
-    safe_value = str(filtervalue).replace("'", "''")
+    cql_literal = _to_cql_literal(filtervalue)
     params = {
         "service": "WFS",
         "version": "2.0.0",
         "request": "GetFeature",
         "typename": typename,
         "outputFormat": "application/json",
-        "cql_filter": f"{name_field} = '{safe_value}'"  # exact match, quoted string literal
+        "cql_filter": f"{name_field} = {cql_literal}"  # exact match, numeric or quoted string literal
     }
-    
+    print(f'!-- Requesting WFS with parameters: {params}')
     try:
         r = requests.get(url, params=params)
         r.raise_for_status()
+        
+        # Check if response is valid JSON/GeoJSON
+        try:
+            response_json = r.json()
+            # Validate that it's GeoJSON with features
+            if not isinstance(response_json, dict) or 'features' not in response_json:
+                error_msg = f"Invalid GeoJSON response: expected object with 'features' key. Got: {response_json}"
+                logging.error(f'!-- WFS {typename} CQL filter error: {error_msg}')
+                return None
+        except json.JSONDecodeError as je:
+            error_msg = f"Response is not JSON. First 500 chars: {r.content[:500]}"
+            logging.error(f'!-- WFS {typename} CQL filter error: {error_msg}')
+            return None
+        
+        # Now parse as GeoDataFrame
         gdf = gpd.read_file(BytesIO(r.content))
-        logging.info(f'!-- succesfull filtering wfs with parameters for layer {typename} and colum/value {name_field} = {filtervalue}')
+        if gdf.empty:
+            logging.warning(f'!-- WFS filtering returned empty GeoDataFrame for {typename} where {name_field} = {filtervalue}')
+        else:
+            logging.info(f'!-- succesfull filtering wfs with parameters for layer {typename} and colum/value {name_field} = {filtervalue}')
     except Exception as e:
-        logging.info(f'!-- filtering wfs failed, setting geodataframe to none {str(e)}')
+        logging.error(f'!-- filtering wfs failed for {typename} with filter {params.get("cql_filter")}: {str(e)}')
         gdf = None    
     return gdf

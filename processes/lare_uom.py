@@ -102,15 +102,18 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
     # check if hazard provided is listed in the list of hazards
     appconfig = read_appyml('app.yml')    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
-    wmsurl = appconfig['sdi']['geoserver']['url']
-    print(layername,id)
+    geoserver_url = appconfig['sdi']['geoserver']['url']
+    wfs_url = appconfig['ows']['base']
+    
     name_field = appconfig['layers']['datasets'].get(layername)
     if not name_field:
         msg = f"Layername {layername} not found in appconfig"
         return json.dumps(msg)
-
+    
     try:
-        gdf = clipfromwfs_cql(id,'app.yml',name_field,typename=layername)
+        gdf = clipfromwfs_cql(id,'app.yml',url=wfs_url, name_field=name_field,typename=layername)
+        if gdf is None:
+            return json.dumps({'error': f'No features found for {layername} with id={id}'})
         logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
     except Exception as e:
         msg = f'Clipping geodataframe using regionname {id} failed with following error {str(e)}'
@@ -139,8 +142,8 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
     logging.info(f'!-- Area of {name_field} is {gdf.area.sum()}')
 
     try:
-        # create tempfile
-        hexgrid = os.path.join(sessiondir,'hexagons.gpkg')
+        # create tempfile with session ID to avoid GeoServer naming conflicts
+        hexgrid = os.path.join(sessiondir, f'hexagons_{sessionid}.gpkg')
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
         # create hexagons based on the passed square meters
         hexgdf = hexgrid_within(gdf, uomsize)
@@ -148,13 +151,14 @@ def mainhandler_uom(sessionid, uomsize,layername,id):
 
         logging.info(f'!-- Main handler hexagrid created {hexgrid}')
     except Exception as e:
-        msg = f"!-- Main handler uom: Creation of rasters with clip for name {name} failed with error: {str(e)}"
+        msg = f"!-- Main handler uom: Creation of hexagrid for {name_field} failed with error: {str(e)}"
+        logging.error(msg)
         
     
     # load the data into geoserver
     try:
         wmslay = publish_gpkg(hexgrid)
-        res = createvieweroutput([wmslay], 'Unit of Measurement', {'uom':'Unit of Measurement'}, wmsurl)
+        res = createvieweroutput([wmslay], 'Unit of Measurement', {'uom':'Unit of Measurement'}, geoserver_url)
         return res
     except Exception as e:
         return json.dumps(msg)

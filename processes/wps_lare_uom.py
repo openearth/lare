@@ -28,7 +28,8 @@
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
 # http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=sessionid=1772550772282953;uomsize=1000;layername=hydro:hybas_eu_lev12_v1c;id=2120048760;
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=sessionid=1772550772282953;uomsize=100000;layername=hydro:hybas_eu_lev12_v1c;id=2120048760;
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=sessionid=1772550772282953;uomsize=100000;layername=region:nuts_2021;id='Menorca';
 # 
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
 # https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_uom&datainputs=nutsname='Menorca';uomsize=5000000
