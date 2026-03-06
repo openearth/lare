@@ -38,6 +38,7 @@ import geopandas as gpd
 import rasterio
 from shapely.geometry import Polygon
 import numpy as np
+import fiona
 
 # local
 from processes.utils import read_appyml, tempfile
@@ -54,15 +55,43 @@ from processes.utils_raster import lare_raster
 
 logging.basicConfig(level=logging.INFO)
 
+
+def test():
+    # Load the GeoPackage files
+    hexagons_gpkg = 'path/to/hexagons.gpkg'
+    lines_gpkg = 'path/to/lines.gpkg'
+
+    hexagons = gpd.read_file(hexagons_gpkg, layer='hexagons')
+    lines = gpd.read_file(lines_gpkg, layer='lines')
+
+    # Perform the spatial join
+    sjoin_result = gpd.sjoin(hexagons, lines, how="inner", op='intersects')
+
+    # Calculate the total length of lines within each hexagon
+    sjoin_result['line_length'] = sjoin_result['geometry'].length
+    hexagon_lengths = sjoin_result.groupby('index_right')['line_length'].sum().reset_index()
+
+    # Rename the columns to match the original hexagon GeoDataFrame
+    hexagon_lengths.rename(columns={'index_right': 'id', 'line_length': 'total_length'}, inplace=True)
+
+    # Merge the total lengths back into the original hexagon GeoDataFrame
+    hexagons = hexagons.merge(hexagon_lengths, on='id', how='left')
+
+    # Save the updated hexagon GeoDataFrame back to a GeoPackage file
+    output_gpkg = 'path/to/output_hexagons.gpkg'
+    hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
+
+    print("Updated hexagon GeoPackage file saved to:", output_gpkg)
+
 def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
-    #outkcs = gpd.read_file(outkcs)
-    print(type(outkcs))
-    print(type(uomgpkg))
+    if outkcs is None:
+        raise RuntimeError("KCS input is None, cannot aggregate to UoM")
 
-    # Check the CRS of both datasets
-    print("CRS of outkcs:", outkcs.crs)
+    if not isinstance(outkcs, gpd.GeoDataFrame):
+        raise RuntimeError(f"KCS input must be a GeoDataFrame, got {type(outkcs)}")
 
-    import fiona
+    if outkcs.empty:
+        logging.warning("!-- aggregate_kcs_uom: outkcs is empty, writing zero lengths to UoM")
 
     layer_names = fiona.listlayers(uomgpkg)
     if not layer_names:
@@ -70,46 +99,52 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
     uom_layer = layer_names[0]
 
     uom = gpd.read_file(uomgpkg, layer=uom_layer, engine='pyogrio')
-    print("CRS of uomgpkg:", uom.crs)
+    logging.info(f"!-- aggregate_kcs_uom: CRS outkcs={outkcs.crs}, uom={uom.crs}")
 
-    # Reproject if necessary
+    if uom.empty:
+        raise RuntimeError("UoM dataset is empty")
+
+    # Ensure a stable key exists for merging.
+    if 'id' not in uom.columns:
+        logging.warning("!-- aggregate_kcs_uom: 'id' column not found in UoM, creating from index")
+        uom = uom.reset_index(drop=False).rename(columns={'index': 'id'})
+
+    # Reproject KCS data to UoM CRS when needed.
     if outkcs.crs != uom.crs:
         outkcs = outkcs.to_crs(uom.crs)
 
-    # Calculate the length of the geometries in outkcs
-    outkcs['length'] = outkcs.geometry.length
+    # Work in projected coordinates for meaningful length calculations.
+    uom_calc = uom
+    if not is_metric_crs(uom.crs):
+        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3857 for length calculation")
+        uom_calc = uom.to_crs(3857)
 
-    # Perform the spatial join
-    aggregated = gpd.sjoin(outkcs, uom, how="inner", predicate='intersects')
+    outkcs_calc = outkcs
+    if not is_metric_crs(outkcs.crs):
+        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3857 for length calculation")
+        outkcs_calc = outkcs.to_crs(3857)
+
+    # Intersect KCS geometries with UoM polygons so lengths are measured inside each hexagon.
+    kcs_geom = outkcs_calc[['geometry']].copy()
+    uom_geom = uom_calc[['id', 'geometry']].copy()
+    intersections = gpd.overlay(kcs_geom, uom_geom, how='intersection', keep_geom_type=False)
+
+    if intersections.empty:
+        logging.info("!-- aggregate_kcs_uom: No intersections found, assigning zero lengths")
+        aggregated = uom[['id']].copy()
+        aggregated['length'] = 0.0
+    else:
+        intersections['length'] = intersections.geometry.length
+        aggregated = intersections.groupby('id', as_index=False)['length'].sum()
+        logging.info("!-- aggregate_kcs_uom: Summed intersected lengths per UoM id")
+
+    # Merge aggregated statistic back into existing hexagon features.
+    uom = uom.merge(aggregated, on='id', how='left')
+    uom['length'] = uom['length'].fillna(0)
+    logging.info("!-- aggregate_kcs_uom: Merged aggregated length into UoM and filled nulls with 0")
     
-    logging.info(f"!-- aggregate_kcs_uom: After sjoin, columns available: {list(aggregated.columns)}")
-
-    # Ensure 'length' column exists in aggregated result (sjoin might have dropped it)
-    if 'length' not in aggregated.columns:
-        logging.warning(f"!-- aggregate_kcs_uom: 'length' column not found after sjoin, will try to recalculate from geometry")
-        aggregated['length'] = aggregated.geometry.length
-
-    # Aggregate the data by summing the lengths
-    aggregated = aggregated.groupby('index_right').agg({
-        'length': 'sum'  # Sum the lengths of the intersecting geometries
-    }).reset_index()
-
-    # Fill missing values with 0
-    aggregated['length'] = aggregated['length'].fillna(0)
-
-    # Add aggregated statistic as attribute to existing hexagon features
-    result = uom.copy()
-    length_by_cell = aggregated.set_index('index_right')['length']
-    
-    # Check if 'length' attribute exists, create it if not (in double precision)
-    if 'length' not in result.columns:
-        result['length'] = np.float64(0)
-    
-    # Update length values with aggregated statistics, ensure double precision
-    result['length'] = result.index.map(length_by_cell).fillna(0).astype(np.float64)
-
     # Save back to the same existing layer (overwrite layer contents, keep same layer entry)
-    result.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
+    uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
 
     print("Aggregation complete. Result written to UoM GeoPackage.")
     return uomgpkg
@@ -154,10 +189,15 @@ def mainhandler_uomkcs(sessionid, kcs, hazardlr):
 
 
     # the name or even the gdf is not stored anywhere, this could be an improvement
-    logging.info("----!!! Derive GeodataFrame using: {}".format(sessionid))
+    logging.info("!-- Derive GeodataFrame using: {}".format(sessionid))
     regionfile = os.path.join(tmpdir,'region.gpkg')
-    gdf = gpd.read_file(regionfile)
-    logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
+    if not os.path.isfile(regionfile):
+        error_msg = f'Region file {regionfile} not found'
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
+    else:
+        gdf = gpd.read_file(regionfile)
+        logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
 
     # first find out what datatype KCS is, for rasters we need a different approach 
     # than for vector data, because of the aggregation step to the hexagons. 

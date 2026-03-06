@@ -950,17 +950,50 @@ def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
 def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
     # Define the URL and layers
     try:
+        # Validate input parameters
+        logging.info(f'!--- filtering vector data: Starting with layer={kcslayer}, filter_crs={filter_crs}, kcs_crs={kcs_crs}')
+        
+        if filtergdf is None or filtergdf.empty:
+            logging.error(f'! -- filtering vector data: filtergdf is None or empty')
+            return None
+        
+        logging.info(f'!--- filtering vector data: filtergdf has {len(filtergdf)} feature(s), CRS={filtergdf.crs}')
+        
         if filter_crs != kcs_crs:
             # Use GeoPandas to_crs for proper CRS transformation
             nuts_gdf = filtergdf.to_crs(epsg=kcs_crs)
-            logging.info(f'!--- filtering vector data: filtergdf converted to {kcs_crs}')
+            logging.info(f'!--- filtering vector data: filtergdf converted from {filter_crs} to {kcs_crs}')
         else:
             nuts_gdf = filtergdf
-        wkt_representation = dumps(nuts_gdf.geometry.iloc[0])
-        logging.info(f'!--- filtering vector data: filtergdf as wkt {wkt_representation}')
+            logging.info(f'!--- filtering vector data: No CRS conversion needed, both are {kcs_crs}')
+        
+        # Validate geometry before creating WKT
+        geom = nuts_gdf.geometry.iloc[0]
+        if geom is None or geom.is_empty:
+            logging.error(f'! -- filtering vector data: Geometry is None or empty')
+            return None
+        
+        if not geom.is_valid:
+            logging.warning(f'! -- filtering vector data: Geometry is invalid, attempting to fix')
+            geom = geom.buffer(0)  # Try to fix invalid geometry
+        
+        # Keep WKT compact to avoid very large filter payloads.
+        wkt_representation = dumps(geom, rounding_precision=6, trim=True)
+
+        # If still very large, simplify slightly while preserving topology.
+        if len(wkt_representation) > 12000:
+            minx, miny, maxx, maxy = geom.bounds
+            span = max(maxx - minx, maxy - miny)
+            tolerance = max(span * 0.0001, 1e-06)
+            simplified_geom = geom.simplify(tolerance, preserve_topology=True)
+            wkt_representation = dumps(simplified_geom, rounding_precision=6, trim=True)
+            logging.info(f'!--- filtering vector data: Simplified geometry for filter, tolerance={tolerance}')
+
+        logging.info(f'!--- filtering vector data: WKT length: {len(wkt_representation)} chars')
+        logging.info(f'!--- filtering vector data: WKT preview: {wkt_representation[:200]}...')
         
     except Exception as e:
-        logging.error(f'! -- filtering vector data: transformer failed with {str(e)}')
+        logging.error(f'! -- filtering vector data: transformer/WKT creation failed with {str(e)}')
         return None
 
     
@@ -974,10 +1007,54 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
         'CQL_FILTER': f"Intersects(geom, SRID={kcs_crs};{wkt_representation})"
     }
 
+    # Log the request for debugging
+    logging.info(f'!--- filtering vector data: GeoServer URL: {geoserver_url}')
+    logging.info(f'!--- filtering vector data: Request method: POST (form-encoded body)')
+    logging.info(f'!--- filtering vector data: CQL length: {len(kcs_params["CQL_FILTER"])} chars')
+    logging.info(f'!--- filtering vector data: Request params (without full CQL): service={kcs_params["service"]}, version={kcs_params["version"]}, request={kcs_params["request"]}, typeNames={kcs_params["typeNames"]}')
+    
     try:
-        kcs_response = requests.get(geoserver_url, params=kcs_params)
-        kcs_data = kcs_response.json()
-        logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf')
+        # Use POST to avoid "414 URI Too Long" for large polygon filters.
+        kcs_response = requests.post(geoserver_url, data=kcs_params, timeout=120)
+
+        # Fallback for servers that do not allow KVP POST.
+        if kcs_response.status_code in (405, 501):
+            logging.warning(f'! -- filtering vector data: POST not supported ({kcs_response.status_code}), falling back to GET')
+            kcs_response = requests.get(geoserver_url, params=kcs_params, timeout=120)
+        
+        # Check HTTP status code first
+        logging.info(f'!--- filtering vector data: Response status code: {kcs_response.status_code}')
+        
+        if kcs_response.status_code != 200:
+            logging.error(f'! -- filtering vector data: HTTP error {kcs_response.status_code}')
+            logging.error(f'! -- filtering vector data: Response text: {kcs_response.text[:500]}')
+            return None
+        
+        # Check content type
+        content_type = kcs_response.headers.get('Content-Type', '')
+        logging.info(f'!--- filtering vector data: Response content type: {content_type}')
+        
+        # Log first part of response for debugging
+        response_preview = kcs_response.text[:200] if kcs_response.text else 'Empty response'
+        logging.info(f'!--- filtering vector data: Response preview: {response_preview}')
+        
+        # Try to parse JSON
+        try:
+            kcs_data = kcs_response.json()
+        except ValueError as ve:
+            logging.error(f'! -- filtering vector data: JSON parsing failed: {ve}')
+            logging.error(f'! -- filtering vector data: Full response text: {kcs_response.text[:1000]}')
+            return None
+        
+        # Check if response contains features
+        if 'features' not in kcs_data:
+            logging.error(f'! -- filtering vector data: No features in response. Response keys: {kcs_data.keys()}')
+            if 'exceptions' in kcs_data or 'exception' in kcs_data:
+                logging.error(f'! -- filtering vector data: GeoServer exception: {kcs_data}')
+            return None
+        
+        logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf, found {len(kcs_data.get("features", []))} features')
+        
     except GeoserverException as ge:
         logging.error(f'! -- filtering vector data failed with Geoserverexception {ge}')
         return None
@@ -986,6 +1063,21 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
         return None
     
     # Create a GeoDataFrame from the roads data
-    kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(4326))
-    logging.info(f'!--- filtering vector data: {kcslayer} filtered by filtergdf')
-    return kcs_gdf
+    try:
+        if not kcs_data.get('features'):
+            logging.warning(f'!--- filtering vector data: No features returned from query')
+            return gpd.GeoDataFrame()  # Return empty GeoDataFrame instead of None
+        
+        # Check if CRS info is in the response
+        response_crs = kcs_data.get('crs')
+        if response_crs:
+            logging.info(f'!--- filtering vector data: Response CRS: {response_crs}')
+        
+        kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(4326))
+        logging.info(f'!--- filtering vector data: Created GeoDataFrame with {len(kcs_gdf)} features, CRS={kcs_gdf.crs}')
+        return kcs_gdf
+    
+    except Exception as e:
+        logging.error(f'! -- filtering vector data: Failed to create GeoDataFrame from features: {e}')
+        logging.error(f'! -- filtering vector data: Features data: {kcs_data.get("features", [])[:2]}')  # Log first 2 features
+        return None
