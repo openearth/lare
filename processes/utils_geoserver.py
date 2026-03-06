@@ -684,6 +684,78 @@ class GS:
         # First delete the datastore recursively (which will remove all layers)
         return self.delete_datastore(ws, store_name, recursive=True)
 
+def republish_layer(store='hexagons_17727241142485569', 
+                    layer_name='hexagons_17727241142485569_td', 
+                    title=None, 
+                    native_name=None, 
+                    style_name='transport_density', 
+                    workspace='tmp',
+                    wait_for_layer=True, 
+                    max_wait=5):
+    """
+    Publish a new layer from an existing datastore with a specific style.
+    This allows you to publish multiple layers from the same GPKG store with different styles.
+    
+    Args:
+        store (str): Existing datastore name (default: 'hexagons_17727241142485569')
+        layer_name (str): New layer name to publish (default: 'hexagons_17727241142485569_td')
+        title (str): Optional layer title
+        native_name (str): Native feature type name in the datastore (default: same as store)
+        style_name (str): Style to apply (default: 'transport_density')
+        workspace (str): GeoServer workspace (default: 'tmp')
+        wait_for_layer (bool): Wait for layer to be available before setting style
+        max_wait (int): Maximum seconds to wait for layer availability
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Configuration for GeoServer    
+    appconfig = read_appyml('app.yml')
+    geoserver_url = appconfig['sdi']['geoserver']['resturl']
+    username = appconfig['sdi']['geoserver']['user']
+    password = appconfig['sdi']['geoserver']['password']
+
+    try:
+        # Initialize GS client
+        gs = GS(geoserver_url, username, password)
+        
+        # Ensure workspace exists
+        gs.ensure_workspace(workspace)
+        logging.info(f"!-- republish_layer: Workspace '{workspace}' ensured")
+        
+        # Publish new layer from existing datastore
+        logging.info(f"!-- republish_layer: Publishing new layer '{layer_name}' from existing store '{store}'")
+        gs.publish_featuretype(
+            ws=workspace,
+            store=store,
+            layer_name=layer_name,
+            title=title,
+            native_name=native_name or store  # Default to store name if not specified
+        )
+        
+        # Reload catalog to ensure changes are visible
+        gs.reload_catalog()
+        time.sleep(1)
+        
+        # Set the style for the new layer
+        if style_name:
+            logging.info(f"!-- republish_layer: Setting style '{style_name}' for new layer '{layer_name}'")
+            gs.set_default_style(
+                ws=workspace,
+                layer_name=layer_name,
+                style_name=style_name,
+                wait_for_layer=wait_for_layer,
+                max_wait=max_wait,
+                skip_verification=False
+            )
+        
+        logging.info(f"!-- republish_layer: Layer '{layer_name}' published successfully with style '{style_name}'")
+        return True
+        
+    except Exception as e:
+        logging.error(f"!-- republish_layer: Failed to publish layer '{layer_name}': {e}")
+        return False
+
 
 def publish_gpkg(
     gpkg_path,

@@ -44,7 +44,7 @@ import fiona
 from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput
+from processes.utils_geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
 from processes.utils_raster import lare_raster
 
 
@@ -83,7 +83,7 @@ def test():
 
     print("Updated hexagon GeoPackage file saved to:", output_gpkg)
 
-def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
+def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
     if outkcs is None:
         raise RuntimeError("KCS input is None, cannot aggregate to UoM")
 
@@ -121,24 +121,29 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir):
 
     outkcs_calc = outkcs
     if not is_metric_crs(outkcs.crs):
-        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3857 for length calculation")
+        logging.info("!-- aggregate_kcs_uom: KCS CRS is not metric, using EPSG:3857 for length calculation")
         outkcs_calc = outkcs.to_crs(3857)
 
-    # Intersect KCS geometries with UoM polygons so lengths are measured inside each hexagon.
-    kcs_geom = outkcs_calc[['geometry']].copy()
-    uom_geom = uom_calc[['id', 'geometry']].copy()
-    intersections = gpd.overlay(kcs_geom, uom_geom, how='intersection', keep_geom_type=False)
+    # Spatial join: keep UoM as left frame so we can aggregate by hexagon id.
+    sjoin_result = gpd.sjoin(uom_calc[['id', 'geometry']], outkcs_calc[['geometry']], how='inner', predicate='intersects')
+    logging.info(f"!-- aggregate_kcs_uom: sjoin result has {len(sjoin_result)} intersecting features")
 
-    if intersections.empty:
+    if sjoin_result.empty:
         logging.info("!-- aggregate_kcs_uom: No intersections found, assigning zero lengths")
         aggregated = uom[['id']].copy()
         aggregated['length'] = 0.0
     else:
-        intersections['length'] = intersections.geometry.length
-        aggregated = intersections.groupby('id', as_index=False)['length'].sum()
-        logging.info("!-- aggregate_kcs_uom: Summed intersected lengths per UoM id")
+        # Compute lengths from the matched KCS geometries referenced by index_right.
+        kcs_lengths = outkcs_calc.geometry.length
+        sjoin_result['length'] = sjoin_result['index_right'].map(kcs_lengths)
+        sjoin_result['length'] = sjoin_result['length'].fillna(0)
+        aggregated = sjoin_result.groupby('id', as_index=False)['length'].sum()
+        logging.info(f"!-- aggregate_kcs_uom: Summed lengths for {len(aggregated)} hexagons")
 
     # Merge aggregated statistic back into existing hexagon features.
+    if 'length' in uom.columns:
+        uom = uom.drop(columns=['length'])
+
     uom = uom.merge(aggregated, on='id', how='left')
     uom['length'] = uom['length'].fillna(0)
     logging.info("!-- aggregate_kcs_uom: Merged aggregated length into UoM and filled nulls with 0")
@@ -219,32 +224,30 @@ def mainhandler_uomkcs(sessionid, kcs, hazardlr):
 
 
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
-    agguomkcs_publish = None
-
     try:
         if datatype == 'raster':
             outkcs = lare_raster(gdf, gdf.crs, kcs)
         elif datatype == 'vector':
             outkcs = filtervectorbyvector(geoserver_url,gdf,gdf.crs,kcslayer,4326)
-            # TODO aggregate the outkcs to the uomgpkg
-            agguomkcs = aggregate_kcs_uom(outkcs,uomgpkg,tmpdir)
-            logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
-            # Republish using a new GeoPackage name so GeoServer gets a new datastore/layer
-            agguomkcs_publish = os.path.join(tmpdir, f'hexagons_{sessionid}.gpkg')
-            shutil.copyfile(agguomkcs, agguomkcs_publish)
-        if outkcs != None:
-
-            logging.info(f'{kcs} clipped and ready for use as {outkcs}') 
+            # Check if result is valid (not None and not empty for DataFrames)
+            if outkcs is not None and not (hasattr(outkcs, 'empty') and outkcs.empty):
+                # TODO aggregate the outkcs to the uomgpkg
+                agguomkcs = aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=sessionid)
+                logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
+                logging.info(f'{kcs} clipped and ready for use as {outkcs}')
+                # Republish using a new GeoPackage name so GeoServer gets a new datastore/layer
+            else:
+                logging.warning(f'No features returned for {kcs}') 
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
 
     # load the data into geoserver and return to WPS.
     layer_name = f'hexagons_{sessionid}_{kcs}'
     try:
-        if not agguomkcs_publish:
-            return json.dumps({'error': 'Aggregated KCS GeoPackage not available for publishing'})
-        wmslay = publish_gpkg(agguomkcs_publish, style_name='transport_density',republish=True, layer_name=layer_name)
-        res = createvieweroutput(wmslay, 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
+        republish_layer(store=f"hexagons_{sessionid}", layer_name=layer_name, style_name='transport_density', workspace='tmp')
+        # createvieweroutput expects a list of WMS layer names (with workspace prefix)
+        wms_layer = f"tmp:{layer_name}"
+        res = createvieweroutput([wms_layer], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
         return res
     except Exception as e:
         return json.dumps({'error': str(e)})
