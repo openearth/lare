@@ -697,7 +697,7 @@ def build_and_save_stack_from_list(
 
     return stack
 
-def lare_raster(gdf,crs=4258,layer='dem'):
+def lare_raster(gdf,crs=4258,layer='dem',sessionid=None):
     """clips layer based on the name with the specified crs based on the passed dataframe 
 
     Args:
@@ -716,18 +716,21 @@ def lare_raster(gdf,crs=4258,layer='dem'):
     base = appconfig['ows']['base']
     if layer == 'dem':
         layer = appconfig['layers']['dem']
-        outfname = tempfile(tmpdir,'dem_','.tif')
+        outfname = tempfile(tmpdir,sessionid,'dem','.tif')
     elif layer == 'clc':
         layer = appconfig['layers']['clc']
-        outfname = tempfile(tmpdir,'clc_','.tif')
+        outfname = tempfile(tmpdir,sessionid,'clc','.tif')
     elif layer == 'eunis':
         layer = appconfig['layers']['eunis']
-        outfname = tempfile(tmpdir,'eunis_','.tif')
+        outfname = tempfile(tmpdir,sessionid,'eunis','.tif')
+    elif layer == 'imperviousness':
+        layer = appconfig['layers']['imperviousness']
+        outfname = tempfile(tmpdir,sessionid,'imperviousness','.tif')
     elif layer not in ('dem','cls','eunis'):
         # then it is considered a layer that is in the geoserver        
         lname = layer.split(':')[1]
         #layer = lname
-        outfname = tempfile(tmpdir,lname+'_','.tif')
+        outfname = tempfile(tmpdir,sessionid,f'{lname}','.tif')
         logging.info(f"----!!! lare_raster: {layer}, {lname}, {outfname}")
     else:
         logging.error(f"----!!! lare_raster could not be created for {layer}")

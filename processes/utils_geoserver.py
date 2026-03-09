@@ -1023,7 +1023,7 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
     # Define the URL and layers
     try:
         # Validate input parameters
-        logging.info(f'!--- filtering vector data: Starting with layer={kcslayer}, filter_crs={filter_crs}, kcs_crs={kcs_crs}')
+        logging.info(f'!--- filtering vector data: Starting with layer={kcslayer}, filter_crs={filter_crs}, wfslayer_crs={kcs_crs}')
         
         if filtergdf is None or filtergdf.empty:
             logging.error(f'! -- filtering vector data: filtergdf is None or empty')
@@ -1145,7 +1145,7 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
         if response_crs:
             logging.info(f'!--- filtering vector data: Response CRS: {response_crs}')
         
-        kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(4326))
+        kcs_gdf = gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(kcs_crs))
         logging.info(f'!--- filtering vector data: Created GeoDataFrame with {len(kcs_gdf)} features, CRS={kcs_gdf.crs}')
         return kcs_gdf
     
