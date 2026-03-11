@@ -30,6 +30,7 @@ import os
 import json
 import yaml
 from collections import defaultdict
+import pandas as pd
 import numpy as np
 import logging
 
@@ -43,7 +44,7 @@ from rasterio.transform import Affine
 
 # local
 from processes.utils import read_appyml, tempfile
-from processes.utils_raster import lare_raster
+from processes.utils_raster import aggregate_coastal, lare_raster, reclassify_fast
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS, filtervectorbyvector
@@ -181,7 +182,7 @@ def mainhandler_coastal(sessionid):
     
     # clip clc from csw for entire region.gpkg
     # clip Corine Landcover layer from OGC service
-    outclc = lare_raster(gdfcoastal_buffered, 3035, 'clc',sessionid)
+    outclc = lare_raster(gdfcoastal_buffered, 3035, 'clc', sessionid)
     if outclc is None:
         error_msg = f"!-- Main handler coastal: Failed to clip Corine Landcover layer for session {sessionid}"
         logging.error(error_msg)
@@ -189,21 +190,27 @@ def mainhandler_coastal(sessionid):
     else:
         logging.info(f'!-- Main handler coastal: Successfully clipped Corine Landcover layer for session {sessionid}')
 
-    outdem = lare_raster(gdfcoastal_buffered, 3035, 'dem', sessionid)
+    outdem = lare_raster(gdfcoastal_buffered, 4258, 'dem', sessionid)
     if outdem is None:
         error_msg = f"!-- Main handler coastal: Failed to clip DEM layer for session {sessionid}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
     else:   
         logging.info(f'!-- Main handler coastal: Successfully clipped DEM layer for session {sessionid}')   
-
-    outimp = lare_raster(gdfcoastal_buffered, 3035, 'imperviousness',sessionid)
+    
+    outimp = lare_raster(gdfcoastal_buffered, 3035, 'imperviousness', sessionid)
     if outimp is None:
         error_msg = f"!-- Main handler coastal: Failed to clip Imperviousness layer for session {sessionid}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
     else:
         logging.info(f'!-- Main handler coastal: Successfully clipped Imperviousness layer for session {sessionid}')
+
+
+    # call aggregate_coastal(sessionid)
+    logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid}')
+    aggregate_coastal(sessionid)
+    hexgrid = os.path.join(tmpdir,f'{sessionid}',f'hexagons_{sessionid}.gpkg')
 
     try:
         # Clean up old layer and datastore before publishing new one

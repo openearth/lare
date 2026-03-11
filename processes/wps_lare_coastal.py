@@ -94,6 +94,6 @@ class WpsLareCoastal(Process):
 			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = {'errMsg': 'ERROR: {}'.format(e), 'suggested_uom': 0}
-			logging.info(f'!-- wps lare {res}')
+			logging.info(f'!-- wps lare coastal {res}')
 			response.outputs['output_json'].data = json.dumps(res)
 		return response

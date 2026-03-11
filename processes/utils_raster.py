@@ -32,8 +32,12 @@ import os
 import numpy as np
 import rasterio
 import xarray as xr
+import geopandas as gpd
 from scipy.ndimage import grey_dilation
 import rasterio
+import psutil
+from rasterio.mask import mask
+from rasterio.features import rasterize
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import Affine
@@ -54,6 +58,30 @@ from processes.utils_vector import *
 
 
 import logging
+import gc
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
+
+def log_memory_status(stage_name):
+    """Log current memory usage for debugging."""
+    if HAS_PSUTIL:
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        memory_percent = process.memory_percent()
+        logging.info(f"!-- MEMORY [{stage_name}]: RSS={memory_info.rss / (1024**3):.2f}GB, VMS={memory_info.vms / (1024**3):.2f}GB, Percent={memory_percent:.1f}%")
+    else:
+        gc.collect()
+        logging.info(f"!-- MEMORY [{stage_name}]: psutil not available, garbage collection triggered")
+import gc
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 logging.basicConfig(level=logging.INFO)
 
@@ -716,31 +744,32 @@ def lare_raster(gdf,crs=4258,layer='dem',sessionid=None):
     base = appconfig['ows']['base']
     if layer == 'dem':
         layer = appconfig['layers']['dem']
-        outfname = tempfile(tmpdir,sessionid,'dem','.tif')
+        outfname = os.path.join(tmpdir, sessionid, 'dem.tif')
     elif layer == 'clc':
         layer = appconfig['layers']['clc']
-        outfname = tempfile(tmpdir,sessionid,'clc','.tif')
+        outfname = os.path.join(tmpdir, sessionid, 'clc.tif')
     elif layer == 'eunis':
         layer = appconfig['layers']['eunis']
-        outfname = tempfile(tmpdir,sessionid,'eunis','.tif')
+        outfname = os.path.join(tmpdir, sessionid, 'eunis.tif')
     elif layer == 'imperviousness':
         layer = appconfig['layers']['imperviousness']
-        outfname = tempfile(tmpdir,sessionid,'imperviousness','.tif')
+        outfname = os.path.join(tmpdir, sessionid, 'imperviousness.tif')
     elif layer not in ('dem','cls','eunis'):
         # then it is considered a layer that is in the geoserver        
         lname = layer.split(':')[1]
         #layer = lname
-        outfname = tempfile(tmpdir,sessionid,f'{lname}','.tif')
-        logging.info(f"----!!! lare_raster: {layer}, {lname}, {outfname}")
+        outfname = os.path.join(tmpdir, sessionid, f'{lname}.tif')
+        logging.info(f"!-- lare_raster: {layer}, {lname}, {outfname}")
     else:
-        logging.error(f"----!!! lare_raster could not be created for {layer}")
+        logging.error(f"!-- lare_raster could not be created for {layer}")
         return None
     
+    logging.info("!-- lare_raster: {}, {}, {}".format(layer, base, outfname))   
     # create tuple object from extent
     # the dem is in 4258, so .... 
     gdf = gdf.to_crs(crs)
     xmin, ymin, xmax, ymax = gdf.total_bounds
-    logging.info("----!!! lare_raster: {}, {}".format(xmin,xmax))
+    logging.info("!-- lare_raster: {}, {}".format(xmin,xmax))
 
     raster = None
     try:
@@ -786,3 +815,178 @@ def reclassify_fast(array, reclass_dict, dtype='int32', nodata_out=None, origina
         out[mask_nodata] = nodata_out
     print('about to return',print)
     return out
+
+
+def aggregate_coastal(sessionid):
+    # read the app config to get the tmpdir
+    appconfig = read_appyml('app.yml')    
+    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+
+    # current working directory for the session
+    cwd = os.path.join(tmpdir, sessionid)
+    logging.info(f"!-- aggregate coastal: Starting aggregation for session {sessionid} in directory {cwd}")
+    log_memory_status("Start of aggregate_coastal")
+    
+    # Load the hexagon file
+    # try:
+    #     logging.info(f"!-- aggregate coastal: Attempting to load hexagon file from {cwd} for session {sessionid}")
+    #     hf = os.path.join(cwd, f'hexagons_{sessionid}.gpkg')
+    #     logging.info(f"!-- aggregate coastal: Constructed hexagon file path: {hf}")
+    #     if not os.path.isfile(hf):
+    #         logging.error(f"!-- aggregate coastal: Hexagon file not found at {os.path.join(cwd, f'hexagons_{sessionid}.gpkg')}")
+    #         return  
+    #     #else:
+    #         logging.info(f"!-- aggregate coastal: Hexagon file found at {hf}, proceeding to load.")
+    #         hexagons = gpd.read_file(hf)    
+    #         logging.info(f"!-- aggregate coastal: Hexagon file loaded successfully with {len(hexagons)} hexagons.")
+    #         log_memory_status("After loading hexagons")
+    # except Exception as e:
+    #     logging.error(f"!-- aggregate coastal: Error loading hexagon file: {e}", exc_info=True)
+    #     return  
+    hf = os.path.join(cwd, f'hexagons_{sessionid}.gpkg')
+    hexagons = gpd.read_file(hf)    
+
+    def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range=None, classes=None):
+        """
+        Raster-based zonal stats:
+        - Rasterize hexagons to the source raster grid.
+        - Compute per-zone stats from raster values using vectorized numpy operations.
+        """
+        logging.info(f"!-- aggregate coastal: Starting aggregation using {raster_path}")
+        log_memory_status(f"Start of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
+        with rasterio.open(raster_path) as src:
+            logging.info(f"!-- aggregate coastal: Raster shape: {src.shape}, CRS: {src.crs}")
+            if src.crs is None:
+                raise ValueError(f"Raster {raster_path} has no CRS.")
+
+            # Reproject zones to source CRS once; preserve row order for assignment.
+            hex_in_raster_crs = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
+            n_zones = len(hex_in_raster_crs)
+            zone_ids = np.arange(1, n_zones + 1, dtype=np.int32)
+
+            shapes = [
+                (geom, int(zone_id))
+                for zone_id, geom in zip(zone_ids, hex_in_raster_crs.geometry)
+                if geom is not None and not geom.is_empty
+            ]
+            if not shapes:
+                hexagons['aggregated_value'] = np.nan
+                return hexagons
+
+            log_memory_status(f"Before rasterize for {os.path.basename(raster_path)}")
+            zone_raster = rasterize(
+                shapes=shapes,
+                out_shape=(src.height, src.width),
+                transform=src.transform,
+                fill=0,
+                dtype='int32',
+                all_touched=False,
+            )
+            log_memory_status(f"After rasterize for {os.path.basename(raster_path)}")
+            raster_values = src.read(1)
+            log_memory_status(f"After reading raster for {os.path.basename(raster_path)}")
+            logging.info(f"!-- aggregate coastal: Rasterized zones, starting stats computation for {n_zones} zones.")
+            valid_mask = zone_raster > 0
+            nodata = src.nodata
+            if nodata is not None:
+                if np.issubdtype(raster_values.dtype, np.floating) and np.isnan(nodata):
+                    valid_mask &= ~np.isnan(raster_values)
+                else:
+                    valid_mask &= raster_values != nodata
+
+            if value_range is not None:
+                vmin, vmax = value_range
+                valid_mask &= (raster_values >= vmin) & (raster_values <= vmax)
+
+            if classes is not None:
+                valid_mask &= np.isin(raster_values, np.asarray(classes))
+
+            if not np.any(valid_mask):
+                hexagons['aggregated_value'] = np.nan
+                log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)} (no valid data)")
+                return hexagons
+
+            zones = zone_raster[valid_mask]
+            vals = raster_values[valid_mask]
+
+            result = np.full(n_zones, np.nan, dtype='float64')
+            logging.info(f"!-- aggregate coastal: Computing '{stat}' statistic for valid pixels.")
+            if stat == 'mean':
+                vals_f = vals.astype('float64', copy=False)
+                sums = np.bincount(zones, weights=vals_f, minlength=n_zones + 1)
+                counts = np.bincount(zones, minlength=n_zones + 1)
+                means = np.full(n_zones + 1, np.nan, dtype='float64')
+                nonzero = counts > 0
+                means[nonzero] = sums[nonzero] / counts[nonzero]
+                result = means[1:]
+            elif stat == 'majority':
+                if classes is None or len(classes) == 0:
+                    raise ValueError("'majority' statistic requires non-empty 'classes'.")
+
+                classes_arr = np.sort(np.asarray(classes, dtype='int32'))
+                vals_i = vals.astype('int32', copy=False)
+                class_pos = np.searchsorted(classes_arr, vals_i)
+                in_bounds = (class_pos >= 0) & (class_pos < len(classes_arr))
+                exact = np.zeros_like(in_bounds, dtype=bool)
+                exact[in_bounds] = classes_arr[class_pos[in_bounds]] == vals_i[in_bounds]
+
+                zones = zones[exact]
+                class_pos = class_pos[exact]
+                if zones.size > 0:
+                    counts = np.zeros((n_zones + 1, len(classes_arr)), dtype=np.int32)
+                    np.add.at(counts, (zones, class_pos), 1)
+                    zone_totals = counts[1:].sum(axis=1)
+                    has_vals = zone_totals > 0
+                    mode_pos = np.argmax(counts[1:], axis=1)
+                    result[has_vals] = classes_arr[mode_pos[has_vals]]
+            else:
+                raise ValueError(f"Unsupported statistic '{stat}'.")
+
+            hexagons['aggregated_value'] = result
+            log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
+            return hexagons
+
+    # Aggregate landcover
+    try:
+        log_memory_status("Before landcover aggregation")
+        clctif = os.path.join(cwd, 'clc.tif')
+        logging.info(f"!-- aggregate coastal: Starting landcover aggregation using {clctif}")
+        hexagons = aggregate_raster_to_hexagons(clctif, hexagons, stat='majority', classes=[1, 2, 3, 4, 5, 6])
+        hexagons.rename(columns={'aggregated_value': 'landcover_aggregated'}, inplace=True)
+        log_memory_status("After landcover aggregation")
+        gc.collect()
+    except Exception as e:
+        logging.error(f"!-- aggregate coastal: Error aggregating landcover: {e}", exc_info=True)  
+    
+
+    # Aggregate DEM
+    try:
+        log_memory_status("Before DEM aggregation")
+        demtif = os.path.join(cwd, 'dem.tif')
+        logging.info(f"!-- aggregate coastal: Starting DEM aggregation using {demtif}")
+        hexagons = aggregate_raster_to_hexagons(demtif, hexagons, stat='mean', value_range=(0, 200))
+        hexagons.rename(columns={'aggregated_value': 'dem_aggregated'}, inplace=True)
+        log_memory_status("After DEM aggregation")
+        gc.collect()
+    except Exception as e:
+        logging.error(f"!-- aggregate coastal: Error aggregating DEM: {e}", exc_info=True)
+
+    # Aggregate imperviousness
+    try:
+        log_memory_status("Before imperviousness aggregation")
+        imperviousness_tif = os.path.join(cwd, 'imperviousness.tif')
+        logging.info(f"!-- aggregate coastal: Starting imperviousness aggregation using {imperviousness_tif}")
+        logging.info(f"!-- aggregate coastal: Imperviousness file exists: {os.path.isfile(imperviousness_tif)}")
+        hexagons = aggregate_raster_to_hexagons(imperviousness_tif, hexagons, stat='mean', value_range=(30, 100))
+        hexagons.rename(columns={'aggregated_value': 'imperviousness_aggregated'}, inplace=True)
+        log_memory_status("After imperviousness aggregation")
+        gc.collect()
+    except Exception as e:
+        log_memory_status("After imperviousness failure")
+        logging.error(f"!-- aggregate coastal: Error aggregating imperviousness: {e}", exc_info=True)   
+
+    # Save the result to a new GeoPackage file
+    try:
+        hexagons.to_file(os.path.join(cwd, f'hexagons_{sessionid}.gpkg'), driver='GPKG')    
+    except Exception as e:
+        logging.error(f"!-- aggregate coastal: Error saving aggregated hexagons: {e}")      

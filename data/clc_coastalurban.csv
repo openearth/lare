@@ -1,0 +1,7 @@
+clc;label;desc0;desc2;desc1
+1;111;Continuous urban fabric;Urban fabric;Artificial Surfaces
+2;112;Discontinuous urban fabric;Urban fabric;Artificial Surfaces
+3;121;Industrial or commercial units;Industrial. comercial and transport units;Artificial Surfaces
+4;122;Road and rail networks and associated land;Industrial. comercial and transport units;Artificial Surfaces
+5;123;Port areas;Industrial. comercial and transport units;Artificial Surfaces
+6;124;Airports;Industrial. comercial and transport units;Artificial Surfaces
