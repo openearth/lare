@@ -1031,13 +1031,14 @@ def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):
         
         logging.info(f'!--- filtering vector data: filtergdf has {len(filtergdf)} feature(s), CRS={filtergdf.crs}')
         
-        if filter_crs != kcs_crs:
+        filter_epsg = filtergdf.crs.to_epsg() if filtergdf.crs else None
+        if filter_epsg != kcs_crs:
             # Use GeoPandas to_crs for proper CRS transformation
             nuts_gdf = filtergdf.to_crs(epsg=kcs_crs)
-            logging.info(f'!--- filtering vector data: filtergdf converted from {filter_crs} to {kcs_crs}')
+            logging.info(f'!--- filtering vector data: filtergdf converted from EPSG:{filter_epsg} to EPSG:{kcs_crs}')
         else:
             nuts_gdf = filtergdf
-            logging.info(f'!--- filtering vector data: No CRS conversion needed, both are {kcs_crs}')
+            logging.info(f'!--- filtering vector data: No CRS conversion needed, both are EPSG:{kcs_crs}')
         
         # Validate geometry before creating WKT
         geom = nuts_gdf.geometry.iloc[0]

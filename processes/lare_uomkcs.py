@@ -237,7 +237,10 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
             outkcs = lare_raster(uom, uom.crs, kcs)
             logging.info(f'!-- KCS {kcs} clipped as raster: {outkcs}')
         elif datatype == 'vector':
-            outkcs = filtervectorbyvector(geoserver_url, uom, uom.crs, kcslayer, 4326)
+            # Use dissolved boundary of all hexagons as the spatial filter,
+            # because filtervectorbyvector only uses the first geometry.
+            filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
+            outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
 
             # Check if result is valid (not None and not empty for GeoDataFrames)
             if outkcs is not None and not outkcs.empty:
