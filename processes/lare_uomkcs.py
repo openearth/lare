@@ -116,13 +116,13 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
     # Work in projected coordinates for meaningful length calculations.
     uom_calc = uom
     if not is_metric_crs(uom.crs):
-        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3857 for length calculation")
-        uom_calc = uom.to_crs(3857)
+        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3035 for length calculation")
+        uom_calc = uom.to_crs(3035)
 
     outkcs_calc = outkcs
     if not is_metric_crs(outkcs.crs):
-        logging.info("!-- aggregate_kcs_uom: KCS CRS is not metric, using EPSG:3857 for length calculation")
-        outkcs_calc = outkcs.to_crs(3857)
+        logging.info("!-- aggregate_kcs_uom: KCS CRS is not metric, using EPSG:3035 for length calculation")
+        outkcs_calc = outkcs.to_crs(3035)
 
     # Spatial join: keep UoM as left frame so we can aggregate by hexagon id.
     sjoin_result = gpd.sjoin(uom_calc[['id', 'geometry']], outkcs_calc[['geometry']], how='inner', predicate='intersects')
