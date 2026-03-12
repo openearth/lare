@@ -235,19 +235,24 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     try:
         if datatype == 'raster':
             outkcs = lare_raster(uom, uom.crs, kcs)
+            logging.info(f'!-- KCS {kcs} clipped as raster: {outkcs}')
         elif datatype == 'vector':
-            outkcs = filtervectorbyvector(geoserver_url,uom,uom.crs,kcslayer,4326)
-            # Check if result is valid (not None and not empty for DataFrames)
-            if outkcs is not None and not (hasattr(outkcs, 'empty') and outkcs.empty):
-                # TODO aggregate the outkcs to the uomgpkg
-                agguomkcs = aggregate_kcs_uom(outkcs,uom,tmpdir,sessionid=sessionid)
+            outkcs = filtervectorbyvector(geoserver_url, uom, uom.crs, kcslayer, 4326)
+
+            # Check if result is valid (not None and not empty for GeoDataFrames)
+            if outkcs is not None and not outkcs.empty:
+                logging.info(f'!-- KCS {kcs} clipped to region of interest, result has {len(outkcs)} features')
+                agguomkcs = aggregate_kcs_uom(outkcs, uomgpkg, tmpdir, sessionid=sessionid)
                 logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
-                logging.info(f'{kcs} clipped and ready for use as {outkcs}')
-                # Republish using a new GeoPackage name so GeoServer gets a new datastore/layer
             else:
-                logging.warning(f'No features returned for {kcs}') 
+                logging.warning(f'No features returned for {kcs}')
+        else:
+            msg = f'!--- LARE UOM KCS: Unsupported datatype {datatype} for {kcs}'
+            logging.error(msg)
+            return json.dumps({'error': msg})
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
+        return json.dumps({'error': f'Failed to create subset of {kcs}: {str(e)}'})
 
 
     aggregate_hazard(sessionid, hazardtif, archetype)

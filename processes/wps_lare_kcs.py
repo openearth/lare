@@ -27,7 +27,7 @@
 
 # example requests
 # http://localhost:5000/wps?service=wps&request=GetCapabilities&version=2.0.0
-# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=sessionid=17727241142485569;kcs=transport;hazard=pluvial_RP200
+# http://localhost:5000/wps?service=wps&request=Execute&version=2.0.0&Identifier=lare_kcs&datainputs=sessionid=1773324234723672;kcs=transport;hazard=pluvial_RP200;archetype=coastal
 #  
 # https://lare.openearth.eu/wps?service=wps&request=GetCapabilities&version=2.0.0
 # https://lare.openearth.eu/wps?service=wps&request=Execute&version=2.0.0&lare_kcs&datainputs=sessionid=1772550772282953;kcs=transport;hazard=fire_17701219335645576
