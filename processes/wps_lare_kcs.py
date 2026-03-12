@@ -73,6 +73,13 @@ class WpsLareKCS(Process):
                 abstract='Name of the hazard layer created in previous step',
                 data_type='string',
 				keywords=['hazard','layername']
+            ),
+			LiteralInput(
+                identifier='archetype',
+                title='Archetype',
+                abstract='Name of the archetype',
+                data_type='string',
+				keywords=['archetype','coastal','landscape']
             )]
 
 		# Output [in json format]
@@ -103,11 +110,12 @@ class WpsLareKCS(Process):
 			sessionid = request.inputs.get('sessionid', [])[0].data
 			kcs       = request.inputs.get('kcs', [])[0].data
 			hazardlr  = request.inputs.get('hazard', [])[0].data
+			archetype = request.inputs.get('archetype', [])[0].data
 			logging.info(f'!-- wps lare hazard create uon for sessionid {sessionid}')
 			logging.info(f'!-- wps lare hazard create uon for kcs {kcs}')
 
 			#for now only a message is provided, this should be a list of layers to be loaded
-			res = mainhandler_uomkcs(sessionid, kcs, hazardlr)
+			res = mainhandler_uomkcs(sessionid, kcs, hazardlr, archetype)
 			response.outputs['uomkcs'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }

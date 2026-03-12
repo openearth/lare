@@ -51,8 +51,39 @@ from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS, filtervectorbyvector
 
 def mainhandler_coastal(sessionid):
+    """
+    Main entry point for the coastal archetype workflow.
 
-    # check if hazard provided is listed in the list of hazards
+    For a given `sessionid`, this function:
+    - loads application configuration from `app.yml` and the region geometry
+      from `<tmp>/<sessionid>/region.gpkg`
+    - buffers the region to ensure coverage around the area of interest
+    - identifies intersecting coastal zone geometries from GeoServer and writes
+      them to `<tmp>/<sessionid>/coastal_zone.gpkg`
+    - builds a 1 km buffered coastal zone polygon saved as
+      `<tmp>/<sessionid>/coastal_zone_1km_buffered.gpkg` and a 100 m raster mask
+      saved as `<tmp>/<sessionid>/coastal_zone_raster_100m.tif`
+    - clips required input rasters (CLC, DEM, imperviousness) to the buffered
+      coastal zone using `lare_raster`, producing session-specific raster files
+    - aggregates all coastal information into a hexagon grid written to
+      `<tmp>/<sessionid>/hexagons_<sessionid>.gpkg`
+    - publishes the resulting hexagon GeoPackage to GeoServer and returns
+      the viewer configuration for that published layer.
+
+    Parameters
+    ----------
+    sessionid : str
+        Unique identifier for the current user/session; used to locate
+        temporary input/output files and to name GeoServer resources.
+
+    Returns
+    -------
+    str
+        JSON string with either an error description or the viewer output
+        definition created by `createvieweroutput`.
+    """
+
+    # Load application configuration and basic paths/URLs for this run
     appconfig = read_appyml('app.yml')    
     geoserver_url = appconfig['ows']['base']    
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
@@ -212,8 +243,53 @@ def mainhandler_coastal(sessionid):
     # before entering aggregate_coastal, to prevent GC-triggered access violations
     gc.collect()
 
-    # call aggregate_coastal(sessionid)
-    logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid}')
+    # Restrict aggregation to hexagons that intersect the 1 km buffered
+    # coastal zone, following a QGIS-style "Select by location (intersect)".
+    try:
+        session_dir = os.path.join(tmpdir, f"{sessionid}")
+        hex_path = os.path.join(session_dir, f"hexagons_{sessionid}.gpkg")
+        coastal_path = os.path.join(session_dir, "coastal_zone_1km_buffered.gpkg")
+
+        if not os.path.exists(hex_path):
+            error_msg = f"!-- Main handler coastal: Hexagon grid not found for session {sessionid} at expected location: {hex_path}"
+            logging.error(error_msg)
+            return json.dumps({'error': error_msg})
+        if not os.path.exists(coastal_path):
+            error_msg = f"!-- Main handler coastal: Coastal buffer file not found for session {sessionid} at expected location: {coastal_path}"
+            logging.error(error_msg)
+            return json.dumps({'error': error_msg})
+
+        # Read layers
+        hexagons = gpd.read_file(hex_path)
+        coastal = gpd.read_file(coastal_path)
+
+        # Ensure both are in the same CRS
+        if hexagons.crs != coastal.crs:
+            logging.info(f'!-- Main handler coastal: Reprojecting coastal buffer from {coastal.crs} to {hexagons.crs} for intersection with hexagons')
+            coastal = coastal.to_crs(hexagons.crs)
+
+       
+        coastal_union = coastal.unary_union
+        hexagons_coastal = hexagons[hexagons.geometry.intersects(coastal_union)]
+
+        if hexagons_coastal.empty:
+            error_msg = f"!-- Main handler coastal: No hexagons intersect the 1 km coastal buffer for session {sessionid}"
+            logging.error(error_msg)
+            return json.dumps({'error': error_msg})
+
+        # Save coastal-only subset to a separate GeoPackage so the original
+        # hexagon file (full grid) remains available.
+        coastal_hex_path = os.path.join(session_dir, f'hexagons_coastal_{sessionid}.gpkg')
+        hexagons_coastal.to_file(coastal_hex_path, driver="GPKG")
+        logging.info(f'!-- Main handler coastal: Saved {len(hexagons_coastal)} coastal hexagons to {coastal_hex_path}')
+
+    except Exception as e:
+        error_msg = f"!-- Main handler coastal: Failed to derive coastal hexagon subset for session {sessionid}: {str(e)}"
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
+
+    # call aggregate_coastal(sessionid) on coastal-only hexagons
+    logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid} using coastal hexagon subset')
     aggregate_coastal(sessionid)
     hexgrid = os.path.join(tmpdir,f'{sessionid}',f'hexagons_{sessionid}.gpkg')
 

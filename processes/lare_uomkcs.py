@@ -45,7 +45,7 @@ from processes.utils import read_appyml, tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
-from processes.utils_raster import lare_raster
+from processes.utils_raster import lare_raster, aggregate_hazard
 
 
 # from utils import read_appyml, tempfile
@@ -156,7 +156,7 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
 
 
 
-def mainhandler_uomkcs(sessionid, kcs, hazard):
+def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
         
     msg = None
 
@@ -175,24 +175,13 @@ def mainhandler_uomkcs(sessionid, kcs, hazard):
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
     try:
-        uomgpkg = os.path.join(tmpdir,f'hexagons_{sessionid}.gpkg')
+        uomgpkg = os.path.join(tmpdir,f'hexagons_{archetype}_{sessionid}.gpkg')
         if not os.path.isfile(uomgpkg):
             logging.error(f'!-- uomkcs: Layer with Unit of Measurements {uomgpkg} not found')
         else:
             logging.info(f'{uomgpkg} found and used in further process') 
     except Exception as e:
         logging.error(f'Failed to find {uomgpkg} geopackage')
-
-    # the name or even the gdf is not stored anywhere, this could be an improvement
-    logging.info("!-- uomkcs: Derive Regionfile using: {}".format(sessionid))
-    regionfile = os.path.join(tmpdir,'region.gpkg')
-    if not os.path.isfile(regionfile):
-        error_msg = f'!-- uomkcs: Region file {regionfile} not found'
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
-    else:
-        gdf = gpd.read_file(regionfile)
-        logging.info(f'!-- uomkcs:  Spatial reference ID {str(gdf.crs)}')
 
     hazard_layers = appconfig.get('hazard_layers')
     if not isinstance(hazard_layers, dict):
@@ -211,10 +200,11 @@ def mainhandler_uomkcs(sessionid, kcs, hazard):
         return json.dumps({'error': msg})
     else:
         logging.info(f'!--- LARE UOM KCS: Hazard {hazard} found in app configuration with layers {hazardlayer}')
-
+    
     # based on the hazard layer name, clip the hazard layer from the geoserver to the region of interest, this is needed for the next step where the kcs data is clipped to the same region and then aggregated to the hexagons.
+    uom = gpd.read_file(uomgpkg)
     try:
-        hazardtif = lare_raster(gdf, 4326, hazardlayer, sessionid)
+        hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
         if not os.path.isfile(hazardtif):
             logging.error(f'Layer with hazarddescripiton {hazardtif} not found')
         else:
@@ -244,13 +234,13 @@ def mainhandler_uomkcs(sessionid, kcs, hazard):
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
     try:
         if datatype == 'raster':
-            outkcs = lare_raster(gdf, gdf.crs, kcs)
+            outkcs = lare_raster(uom, uom.crs, kcs)
         elif datatype == 'vector':
-            outkcs = filtervectorbyvector(geoserver_url,gdf,gdf.crs,kcslayer,4326)
+            outkcs = filtervectorbyvector(geoserver_url,uom,uom.crs,kcslayer,4326)
             # Check if result is valid (not None and not empty for DataFrames)
             if outkcs is not None and not (hasattr(outkcs, 'empty') and outkcs.empty):
                 # TODO aggregate the outkcs to the uomgpkg
-                agguomkcs = aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=sessionid)
+                agguomkcs = aggregate_kcs_uom(outkcs,uom,tmpdir,sessionid=sessionid)
                 logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
                 logging.info(f'{kcs} clipped and ready for use as {outkcs}')
                 # Republish using a new GeoPackage name so GeoServer gets a new datastore/layer
@@ -259,14 +249,16 @@ def mainhandler_uomkcs(sessionid, kcs, hazard):
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
 
+
+    aggregate_hazard(sessionid, hazardtif, archetype)
     # from this point on the process needs to assign the hazard data to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
     # call lare_coastal with the hazard layer and the kcs layer, this will create a new layer with the hazard data assigned to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
 
-
+    
     # load the data into geoserver and return to WPS.
-    layer_name = f'hexagons_{sessionid}_{kcs}'
+    layer_name = f'hexagons_{archetype}_{sessionid}_{kcs}'
     try:
-        republish_layer(store=f"hexagons_{sessionid}", layer_name=layer_name, style_name='transport_density', workspace='tmp')
+        publish_gpkg(uomgpkg, workspace='tmp', style_name='hazard',layer_name=layer_name)
         # createvieweroutput expects a list of WMS layer names (with workspace prefix)
         wms_layer = f"tmp:{layer_name}"
         res = createvieweroutput([wms_layer], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)

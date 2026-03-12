@@ -843,7 +843,7 @@ def aggregate_coastal(sessionid):
     # except Exception as e:
     #     logging.error(f"!-- aggregate coastal: Error loading hexagon file: {e}", exc_info=True)
     #     return  
-    hf = os.path.join(cwd, f'hexagons_{sessionid}.gpkg')
+    hf = os.path.join(cwd, f'hexagons_coastal_{sessionid}.gpkg')
 
     logging.info(f"!-- aggregate coastal: About to read {hf}, exists: {os.path.isfile(hf)}, size: {os.path.getsize(hf)}")
     gc.collect()
@@ -996,8 +996,157 @@ def aggregate_coastal(sessionid):
 
     # Save the result to a new GeoPackage file
     try:
-        hexagons.to_file(os.path.join(cwd, f'hexagons_{sessionid}.gpkg'), driver='GPKG')    
+        hexagons.to_file(os.path.join(cwd, f'hexagons_coastal_{sessionid}.gpkg'), driver='GPKG')    
     except Exception as e:
         logging.error(f"!-- aggregate coastal: Error saving aggregated hexagons: {e}")
 
     log_memory_status("End of aggregate_coastal")      
+    
+    
+    
+def aggregate_hazard(sessionid, hazardtif, archetype):
+    # read the app config to get the tmpdir
+    appconfig = read_appyml('app.yml')    
+    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+
+    # current working directory for the session
+    cwd = os.path.join(tmpdir, sessionid)
+    logging.info(f"!-- aggregate coastal: Starting aggregation for session {sessionid} in directory {cwd}")
+    log_memory_status("Start of aggregate_coastal")
+    
+ 
+    hf = os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg')
+
+    logging.info(f"!-- aggregate hazard: About to read {hf}, exists: {os.path.isfile(hf)}, size: {os.path.getsize(hf)}")
+    gc.collect()
+    gc.disable()
+    try:
+        hexagons = gpd.read_file(hf)
+    finally:
+        gc.enable()
+    logging.info(f"!-- aggregate coastal: Successfully read {len(hexagons)} hexagons")
+
+    def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range=None, classes=None):
+        """
+        Raster-based zonal stats:
+        - Rasterize hexagons to the source raster grid.
+        - Compute per-zone stats from raster values using vectorized numpy operations.
+        """
+        logging.info(f"!-- aggregate coastal: Starting aggregation using {raster_path}")
+        log_memory_status(f"Start of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
+        with rasterio.open(raster_path) as src:
+            logging.info(f"!-- aggregate coastal: Raster shape: {src.shape}, CRS: {src.crs}")
+            if src.crs is None:
+                raise ValueError(f"Raster {raster_path} has no CRS.")
+
+            # Reproject zones to source CRS once; preserve row order for assignment.
+            hex_in_raster_crs = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
+            n_zones = len(hex_in_raster_crs)
+            zone_ids = np.arange(1, n_zones + 1, dtype=np.int32)
+
+            shapes = [
+                (geom, int(zone_id))
+                for zone_id, geom in zip(zone_ids, hex_in_raster_crs.geometry)
+                if geom is not None and not geom.is_empty
+            ]
+            if not shapes:
+                hexagons['aggregated_value'] = np.nan
+                return hexagons
+
+            log_memory_status(f"Before rasterize for {os.path.basename(raster_path)}")
+            zone_raster = rasterize(
+                shapes=shapes,
+                out_shape=(src.height, src.width),
+                transform=src.transform,
+                fill=0,
+                dtype='int32',
+                all_touched=False,
+            )
+            log_memory_status(f"After rasterize for {os.path.basename(raster_path)}")
+            raster_values = src.read(1)
+            log_memory_status(f"After reading raster for {os.path.basename(raster_path)}")
+            logging.info(f"!-- aggregate coastal: Rasterized zones, starting stats computation for {n_zones} zones.")
+            valid_mask = zone_raster > 0
+            nodata = src.nodata
+            if nodata is not None:
+                if np.issubdtype(raster_values.dtype, np.floating) and np.isnan(nodata):
+                    valid_mask &= ~np.isnan(raster_values)
+                else:
+                    valid_mask &= raster_values != nodata
+
+            if value_range is not None:
+                vmin, vmax = value_range
+                valid_mask &= (raster_values >= vmin) & (raster_values <= vmax)
+
+            if classes is not None:
+                valid_mask &= np.isin(raster_values, np.asarray(classes))
+
+            if not np.any(valid_mask):
+                hexagons['aggregated_value'] = np.nan
+                log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)} (no valid data)")
+                return hexagons
+
+            zones = zone_raster[valid_mask]
+            vals = raster_values[valid_mask]
+
+            result = np.full(n_zones, np.nan, dtype='float64')
+            logging.info(f"!-- aggregate hazard: Computing '{stat}' statistic for valid pixels.")
+            if stat == 'mean':
+                vals_f = vals.astype('float64', copy=False)
+                sums = np.bincount(zones, weights=vals_f, minlength=n_zones + 1)
+                counts = np.bincount(zones, minlength=n_zones + 1)
+                means = np.full(n_zones + 1, np.nan, dtype='float64')
+                nonzero = counts > 0
+                means[nonzero] = sums[nonzero] / counts[nonzero]
+                result = means[1:]
+            elif stat == 'majority':
+                if classes is None or len(classes) == 0:
+                    raise ValueError("'majority' statistic requires non-empty 'classes'.")
+
+                classes_arr = np.sort(np.asarray(classes, dtype='int32'))
+                vals_i = vals.astype('int32', copy=False)
+                class_pos = np.searchsorted(classes_arr, vals_i)
+                in_bounds = (class_pos >= 0) & (class_pos < len(classes_arr))
+                exact = np.zeros_like(in_bounds, dtype=bool)
+                exact[in_bounds] = classes_arr[class_pos[in_bounds]] == vals_i[in_bounds]
+
+                zones = zones[exact]
+                class_pos = class_pos[exact]
+                if zones.size > 0:
+                    counts = np.zeros((n_zones + 1, len(classes_arr)), dtype=np.int32)
+                    np.add.at(counts, (zones, class_pos), 1)
+                    zone_totals = counts[1:].sum(axis=1)
+                    has_vals = zone_totals > 0
+                    mode_pos = np.argmax(counts[1:], axis=1)
+                    result[has_vals] = classes_arr[mode_pos[has_vals]]
+            else:
+                raise ValueError(f"Unsupported statistic '{stat}'.")
+
+            hexagons['aggregated_value'] = result
+            log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
+            return hexagons
+        
+    with rasterio.Env():
+        # Aggregate hazard
+        try:
+            log_memory_status("Before hazard aggregation")
+            logging.info(f"!-- aggregate hazard: Starting hazard aggregation using {hazardtif}")
+            hexagons = aggregate_raster_to_hexagons(hazardtif, hexagons, stat='mean')
+            hexagons.rename(columns={'aggregated_value': 'hazard_aggregated'}, inplace=True)
+            log_memory_status("After hazard aggregation")
+            gc.collect()
+        except Exception as e:
+            logging.error(f"!-- aggregate hazard: Error aggregating DEM: {e}", exc_info=True)
+
+
+
+    logging.info("!-- aggregate hazard: rasterio.Env() closed, GDAL resources released")
+    gc.collect()
+
+    # Save the result to a new GeoPackage file
+    try:
+        hexagons.to_file(os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg'), driver='GPKG')    
+    except Exception as e:
+        logging.error(f"!-- aggregate hazard: Error saving aggregated hexagons: {e}")
+
+    log_memory_status("End of aggregate_coastal")   
