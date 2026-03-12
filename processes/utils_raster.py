@@ -844,7 +844,15 @@ def aggregate_coastal(sessionid):
     #     logging.error(f"!-- aggregate coastal: Error loading hexagon file: {e}", exc_info=True)
     #     return  
     hf = os.path.join(cwd, f'hexagons_{sessionid}.gpkg')
-    hexagons = gpd.read_file(hf)    
+
+    logging.info(f"!-- aggregate coastal: About to read {hf}, exists: {os.path.isfile(hf)}, size: {os.path.getsize(hf)}")
+    gc.collect()
+    gc.disable()
+    try:
+        hexagons = gpd.read_file(hf)
+    finally:
+        gc.enable()
+    logging.info(f"!-- aggregate coastal: Successfully read {len(hexagons)} hexagons")
 
     def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range=None, classes=None):
         """
@@ -946,47 +954,50 @@ def aggregate_coastal(sessionid):
             log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
             return hexagons
 
-    # Aggregate landcover
-    try:
-        log_memory_status("Before landcover aggregation")
-        clctif = os.path.join(cwd, 'clc.tif')
-        logging.info(f"!-- aggregate coastal: Starting landcover aggregation using {clctif}")
-        hexagons = aggregate_raster_to_hexagons(clctif, hexagons, stat='majority', classes=[1, 2, 3, 4, 5, 6])
-        hexagons.rename(columns={'aggregated_value': 'landcover_aggregated'}, inplace=True)
-        log_memory_status("After landcover aggregation")
-        gc.collect()
-    except Exception as e:
-        logging.error(f"!-- aggregate coastal: Error aggregating landcover: {e}", exc_info=True)  
-    
+    with rasterio.Env():
+        # Aggregate landcover
+        try:
+            log_memory_status("Before landcover aggregation")
+            clctif = os.path.join(cwd, 'clc.tif')
+            logging.info(f"!-- aggregate coastal: Starting landcover aggregation using {clctif}")
+            hexagons = aggregate_raster_to_hexagons(clctif, hexagons, stat='majority', classes=[1, 2, 3, 4, 5, 6])
+            hexagons.rename(columns={'aggregated_value': 'landcover_aggregated'}, inplace=True)
+            log_memory_status("After landcover aggregation")
+            gc.collect()
+        except Exception as e:
+            logging.error(f"!-- aggregate coastal: Error aggregating landcover: {e}", exc_info=True)  
 
-    # Aggregate DEM
-    try:
-        log_memory_status("Before DEM aggregation")
-        demtif = os.path.join(cwd, 'dem.tif')
-        logging.info(f"!-- aggregate coastal: Starting DEM aggregation using {demtif}")
-        hexagons = aggregate_raster_to_hexagons(demtif, hexagons, stat='mean', value_range=(0, 200))
-        hexagons.rename(columns={'aggregated_value': 'dem_aggregated'}, inplace=True)
-        log_memory_status("After DEM aggregation")
-        gc.collect()
-    except Exception as e:
-        logging.error(f"!-- aggregate coastal: Error aggregating DEM: {e}", exc_info=True)
+        # Aggregate DEM
+        try:
+            log_memory_status("Before DEM aggregation")
+            demtif = os.path.join(cwd, 'dem.tif')
+            logging.info(f"!-- aggregate coastal: Starting DEM aggregation using {demtif}")
+            hexagons = aggregate_raster_to_hexagons(demtif, hexagons, stat='mean', value_range=(0, 200))
+            hexagons.rename(columns={'aggregated_value': 'dem_aggregated'}, inplace=True)
+            log_memory_status("After DEM aggregation")
+            gc.collect()
+        except Exception as e:
+            logging.error(f"!-- aggregate coastal: Error aggregating DEM: {e}", exc_info=True)
 
-    # Aggregate imperviousness
-    try:
-        log_memory_status("Before imperviousness aggregation")
-        imperviousness_tif = os.path.join(cwd, 'imperviousness.tif')
-        logging.info(f"!-- aggregate coastal: Starting imperviousness aggregation using {imperviousness_tif}")
-        logging.info(f"!-- aggregate coastal: Imperviousness file exists: {os.path.isfile(imperviousness_tif)}")
-        hexagons = aggregate_raster_to_hexagons(imperviousness_tif, hexagons, stat='mean', value_range=(30, 100))
-        hexagons.rename(columns={'aggregated_value': 'imperviousness_aggregated'}, inplace=True)
-        log_memory_status("After imperviousness aggregation")
-        gc.collect()
-    except Exception as e:
-        log_memory_status("After imperviousness failure")
-        logging.error(f"!-- aggregate coastal: Error aggregating imperviousness: {e}", exc_info=True)   
+        # Aggregate imperviousness
+        try:
+            log_memory_status("Before imperviousness aggregation")
+            imperviousness_tif = os.path.join(cwd, 'imperviousness.tif')
+            logging.info(f"!-- aggregate coastal: Starting imperviousness aggregation using {imperviousness_tif}")
+            hexagons = aggregate_raster_to_hexagons(imperviousness_tif, hexagons, stat='mean', value_range=(30, 100))
+            hexagons.rename(columns={'aggregated_value': 'imperviousness_aggregated'}, inplace=True)
+            log_memory_status("After imperviousness aggregation")
+            gc.collect()
+        except Exception as e:
+            logging.error(f"!-- aggregate coastal: Error aggregating imperviousness: {e}", exc_info=True)   
+
+    logging.info("!-- aggregate coastal: rasterio.Env() closed, GDAL resources released")
+    gc.collect()
 
     # Save the result to a new GeoPackage file
     try:
         hexagons.to_file(os.path.join(cwd, f'hexagons_{sessionid}.gpkg'), driver='GPKG')    
     except Exception as e:
-        logging.error(f"!-- aggregate coastal: Error saving aggregated hexagons: {e}")      
+        logging.error(f"!-- aggregate coastal: Error saving aggregated hexagons: {e}")
+
+    log_memory_status("End of aggregate_coastal")      

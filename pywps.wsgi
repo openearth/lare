@@ -30,13 +30,16 @@
 # your own tools.
 
 import os
+import sys
+import faulthandler
+faulthandler.enable(file=sys.stderr, all_threads=True)
 
 import flask
 
 import pywps
 from pywps.app.Service import Service
 
-# from flask_cors import CORS
+from flask_cors import CORS
 
 # LARE
 from processes.wps_lare_landscape import WpsLareLandscape
@@ -67,7 +70,7 @@ for process in processes:
 
 service = Service(processes, ["pywps.cfg"])
 application = flask.Flask(__name__)
-# CORS(application)
+CORS(application)
 
 
 @application.route("/")
@@ -153,8 +156,8 @@ if __name__ == "__main__":
 
         if pid == 0:
             os.setsid()
-            application.run(threaded=True, host=bind_host)
+            application.run(threaded=False, host=bind_host)
         else:
             os._exit(0)
     else:
-        application.run(threaded=True, host=bind_host)
+        application.run(threaded=False, host=bind_host)

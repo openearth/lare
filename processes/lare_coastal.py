@@ -27,6 +27,7 @@
 
 # native
 import os
+import gc
 import json
 import yaml
 from collections import defaultdict
@@ -73,7 +74,7 @@ def mainhandler_coastal(sessionid):
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
 
-    gdf = gpd.read_file(regionfile)
+    gdf = gpd.read_file(regionfile,)
     if gdf.empty:
         error_msg = f"!-- Main handler uom: Region file for session {sessionid} is empty: {regionfile}"
         logging.error(error_msg)
@@ -206,6 +207,10 @@ def mainhandler_coastal(sessionid):
     else:
         logging.info(f'!-- Main handler coastal: Successfully clipped Imperviousness layer for session {sessionid}')
 
+
+    # Force cleanup of native GDAL/rasterio objects from lare_raster calls
+    # before entering aggregate_coastal, to prevent GC-triggered access violations
+    gc.collect()
 
     # call aggregate_coastal(sessionid)
     logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid}')
