@@ -156,7 +156,7 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
 
 
 
-def mainhandler_uomkcs(sessionid, kcs, hazardlr):
+def mainhandler_uomkcs(sessionid, kcs, hazard):
         
     msg = None
 
@@ -166,43 +166,61 @@ def mainhandler_uomkcs(sessionid, kcs, hazardlr):
     tmpdir = appconfig['sdi']['tmp']['tmpdir']
     wmsurl = appconfig['sdi']['geoserver']['url']
 
+    # section that check hexagons        
     # find the layer defined for hazard as well as uomlayer
     # take into account the crs
     tmpdir = os.path.join(tmpdir, sessionid)
     if not os.path.exists(tmpdir):
-        error_msg = f'Session directory {tmpdir} not found'
+        error_msg = f'!-- uomkcs: Session directory {tmpdir} not found'
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
     try:
         uomgpkg = os.path.join(tmpdir,f'hexagons_{sessionid}.gpkg')
         if not os.path.isfile(uomgpkg):
-            logging.error(f'Layer with Unit of Measurements {uomgpkg} not found')
+            logging.error(f'!-- uomkcs: Layer with Unit of Measurements {uomgpkg} not found')
         else:
             logging.info(f'{uomgpkg} found and used in further process') 
     except Exception as e:
         logging.error(f'Failed to find {uomgpkg} geopackage')
 
-    # similar for hazard layer.
+    # the name or even the gdf is not stored anywhere, this could be an improvement
+    logging.info("!-- uomkcs: Derive Regionfile using: {}".format(sessionid))
+    regionfile = os.path.join(tmpdir,'region.gpkg')
+    if not os.path.isfile(regionfile):
+        error_msg = f'!-- uomkcs: Region file {regionfile} not found'
+        logging.error(error_msg)
+        return json.dumps({'error': error_msg})
+    else:
+        gdf = gpd.read_file(regionfile)
+        logging.info(f'!-- uomkcs:  Spatial reference ID {str(gdf.crs)}')
+
+    hazard_layers = appconfig.get('hazard_layers')
+    if not isinstance(hazard_layers, dict):
+        # Backward compatibility: allow direct map in hazards when no nested hazard config exists.
+        fallback_hazards = appconfig.get('hazards', {})
+        if isinstance(fallback_hazards, dict) and 'hazard' not in fallback_hazards:
+            hazard_layers = fallback_hazards
+        else:
+            hazard_layers = {}
+
+    hazardlayer = hazard_layers.get(hazard)
+    if hazardlayer is None:
+        msg = f'!--- LARE UOM KCS: Hazard {hazard} not found in app configuration'
+        logging.error(msg)
+        logging.info(f"!--- LARE UOM KCS: Available hazard layer keys: {list(hazard_layers.keys())}")
+        return json.dumps({'error': msg})
+    else:
+        logging.info(f'!--- LARE UOM KCS: Hazard {hazard} found in app configuration with layers {hazardlayer}')
+
+    # based on the hazard layer name, clip the hazard layer from the geoserver to the region of interest, this is needed for the next step where the kcs data is clipped to the same region and then aggregated to the hexagons.
     try:
-        hazardtif = os.path.join(tmpdir,hazardlr+'.tif')
+        hazardtif = lare_raster(gdf, 4326, hazardlayer, sessionid)
         if not os.path.isfile(hazardtif):
             logging.error(f'Layer with hazarddescripiton {hazardtif} not found')
         else:
             logging.info(f'{hazardtif} found and used in further process') 
     except Exception as e:
         logging.error(f'Failed to find {hazardtif} tif')
-
-
-    # the name or even the gdf is not stored anywhere, this could be an improvement
-    logging.info("!-- Derive GeodataFrame using: {}".format(sessionid))
-    regionfile = os.path.join(tmpdir,'region.gpkg')
-    if not os.path.isfile(regionfile):
-        error_msg = f'Region file {regionfile} not found'
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
-    else:
-        gdf = gpd.read_file(regionfile)
-        logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
 
     # first find out what datatype KCS is, for rasters we need a different approach 
     # than for vector data, because of the aggregation step to the hexagons. 
@@ -240,6 +258,10 @@ def mainhandler_uomkcs(sessionid, kcs, hazardlr):
                 logging.warning(f'No features returned for {kcs}') 
     except Exception as e:
         logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
+
+    # from this point on the process needs to assign the hazard data to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
+    # call lare_coastal with the hazard layer and the kcs layer, this will create a new layer with the hazard data assigned to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
+
 
     # load the data into geoserver and return to WPS.
     layer_name = f'hexagons_{sessionid}_{kcs}'
