@@ -1004,8 +1004,8 @@ def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
 
         res_dict[name].append({
             "name": title,
-            "layer": lname,
-            "url": wmsurl
+            "layer": 'tmp:' + lname,
+            "url": wmsurl + '/' + 'wms'
         })
 
     # Convert to desired structure

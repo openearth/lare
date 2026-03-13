@@ -291,7 +291,7 @@ def mainhandler_coastal(sessionid):
     # call aggregate_coastal(sessionid) on coastal-only hexagons
     logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid} using coastal hexagon subset')
     aggregate_coastal(sessionid)
-    hexgrid = os.path.join(tmpdir,f'{sessionid}',f'hexagons_{sessionid}.gpkg')
+    hexgrid = os.path.join(tmpdir,f'{sessionid}',f'hexagons_coastal_{sessionid}.gpkg')
 
     try:
         # Clean up old layer and datastore before publishing new one

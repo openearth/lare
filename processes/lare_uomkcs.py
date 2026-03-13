@@ -229,7 +229,7 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     if datatype == None:
         msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} not found'
         return json.dumps({'error': msg})
-
+    logging.info(f'! datatype for {kcs} is {datatype}')
 
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
     try:
@@ -266,9 +266,9 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     # load the data into geoserver and return to WPS.
     layer_name = f'hexagons_{archetype}_{sessionid}_{kcs}'
     try:
-        publish_gpkg(uomgpkg, workspace='tmp', style_name='hazard',layer_name=layer_name)
+        republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name='hazard',layer_name=layer_name)
         # createvieweroutput expects a list of WMS layer names (with workspace prefix)
-        wms_layer = f"tmp:{layer_name}"
+        wms_layer = f"{layer_name}"
         res = createvieweroutput([wms_layer], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
         return res
     except Exception as e:

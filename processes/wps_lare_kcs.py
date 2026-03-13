@@ -83,7 +83,7 @@ class WpsLareKCS(Process):
             )]
 
 		# Output [in json format]
-		outputs = [ComplexOutput('uomkcs',
+		outputs = [ComplexOutput('output_json',
 		                         'LARE UoM with attributes of kcs',
 		                         supported_formats=[Format('application/json')])]
 
@@ -106,7 +106,7 @@ class WpsLareKCS(Process):
 	def _handler(self, request, response):
 		logging.info(f'!-- wps lare before try')
 		try:		
-			# call mainhandler
+				# call mainhandler
 			sessionid = request.inputs.get('sessionid', [])[0].data
 			kcs       = request.inputs.get('kcs', [])[0].data
 			hazardlr  = request.inputs.get('hazard', [])[0].data
@@ -116,9 +116,10 @@ class WpsLareKCS(Process):
 
 			#for now only a message is provided, this should be a list of layers to be loaded
 			res = mainhandler_uomkcs(sessionid, kcs, hazardlr, archetype)
-			response.outputs['uomkcs'].data = res
+			logging.info(f'!-- wps lare {res}')
+			response.outputs['output_json'].data = res
 		except Exception as e:
 			res = { 'errMsg' : 'ERROR: {}'.format(e) }
 			logging.info(f'!-- wps lare {res}')
-			response.outputs['uomkcs'].data = json.dumps(res)
+			response.outputs['output_json'].data = json.dumps(res)
 		return response
