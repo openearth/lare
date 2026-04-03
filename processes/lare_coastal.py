@@ -44,7 +44,7 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine
 
 # local
-from processes.utils import read_appyml, tempfile
+from processes.config import get_config
 from processes.utils_raster import aggregate_coastal, lare_raster, reclassify_fast
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
@@ -84,10 +84,10 @@ def mainhandler_coastal(sessionid):
     """
 
     # Load application configuration and basic paths/URLs for this run
-    appconfig = read_appyml('app.yml')    
-    geoserver_url = appconfig['ows']['base']    
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
-    wmsurl = appconfig['sdi']['geoserver']['url']
+    cfg = get_config()
+    geoserver_url = cfg.ows_base
+    tmpdir = cfg.tmpdir
+    wmsurl = cfg.geoserver.url
     
     # coastal urban archetype always has the same ingredients:
     # - identify region.gpkg
@@ -128,7 +128,7 @@ def mainhandler_coastal(sessionid):
 
     # get coastal zone layer name from app config
     try:
-        coastlayer = appconfig['layers']['coastline']
+        coastlayer = cfg.layer_coastline
         logging.info(f'!-- Main handler uom: Successfully retrieved coastal zone {coastlayer} layer from app config for session {sessionid}')    
     except KeyError as e:
         error_msg = f"!-- Main handler uom: Failed to get coastal zone layer from app config for session {sessionid}: {str(e)}"
@@ -297,9 +297,7 @@ def mainhandler_coastal(sessionid):
         # Clean up old layer and datastore before publishing new one
         store_name = f'hexagons_{sessionid}'
         try:
-            gs = GS(geoserver_url.replace('/ows', ''), 
-                   appconfig['sdi']['geoserver']['user'],
-                   appconfig['sdi']['geoserver']['password'])
+            gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
             # Try to delete old datastore (with recursive=True to delete all layers within it)
             logging.info(f'!-- Attempting to clean up old datastore: {store_name}')
             gs.delete_layer_and_store('tmp', store_name)

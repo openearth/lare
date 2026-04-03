@@ -13,7 +13,22 @@ docker compose up --build
 ```
 
 - The API is served at **[http://localhost:5000](http://localhost:5000)** (host port `5000` maps to container port `80`).
-- Config is mounted from `./pygeoapi-config.yml` → `/pygeoapi/local.config.yml` inside the container.
+
+### Development (default `docker-compose.yml`)
+
+- **`processes/`**, **`app.yml`**, and **`./tmp`** are bind-mounted into the container.
+- **`PYTHONPATH=/pygeoapi`** makes Python load the live `processes/` tree (over the copy installed by `pip install` in the image).
+- **`run-with-hot-reload`** runs Gunicorn with `--reload` and reloads when `pygeoapi-config.yml` changes (see [pygeoapi Docker](https://docs.pygeoapi.io/en/latest/docker.html)). Worker count uses the image default (**4** Gunicorn workers) unless you set **`WSGI_WORKERS`**.
+- Session directories from `lare-start` appear under **`./tmp`** on the host when `sdi.tmp.tmpdir` in `app.yml` is `/pygeoapi/tmp` (mapped to `./tmp`).
+- After changing **`pyproject.toml`** dependencies, rebuild: `docker compose build --no-cache`.
+
+### Production
+
+Use an image built from the `Dockerfile` without mounting `./processes` or `./tmp`. Omit **`command`** (default is `run`) or set **`command: ["run"]`**, remove **`PYTHONPATH`**, and set **`WSGI_WORKERS`** as needed. Mount only your `pygeoapi-config.yml` (and `app.yml` if not baked into the image).
+
+### Config: temp directory override
+
+Set environment variable **`LARE_TMPDIR`** to override `sdi.tmp.tmpdir` from `app.yml` (e.g. native Windows Python without Docker: `LARE_TMPDIR=C:\develop\lare\tmp`).
 
 Useful endpoints:
 

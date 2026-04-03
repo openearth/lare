@@ -2,8 +2,8 @@
 # Copyright notice
 #   --------------------------------------------------------------------
 #   Copyright (C) 2025 Deltares
-#       Gerrit Hendriksen
-#       gerrit.hendriksen@deltares.nl
+#       Ioanna Micha, Gerrit Hendriksen
+#       ioanna.micha@deltares.nl, gerrit.hendriksen@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -25,154 +25,110 @@
 # Sign up to recieve regular updates of this function, and to contribute
 # your own tools.
 
-# native
-import os
-import json
-import yaml
-from collections import defaultdict
 import logging
+from pathlib import Path
 
-# imports
 import geopandas as gpd
-from shapely.geometry import Polygon
 import numpy as np
+from shapely import STRtree
+from shapely.geometry import Polygon
 
-# local
-from processes.utils import read_appyml, tempfile
+from processes.config import get_config
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS
 
-# from utils import read_appyml, tempfile
-# from utils_wfs import clipfromwfs_cql
-# from utils_wfs import wfs_filter
-# from utils_raster import cut_wcs
+logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.INFO)
 
-def hexgrid_within(gdf, area):
+def hexgrid_within(gdf: gpd.GeoDataFrame, area: float) -> gpd.GeoDataFrame:
+    """Create a hexagonal grid clipped to the boundary of a polygon.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        Must contain at least one polygon and use a projected (metric) CRS.
+    area : float
+        Target area of each hexagon in the same square units as the CRS.
     """
-    Create a hexagonal grid clipped to the boundary of a polygon.
-
-    gdf_polygon : GeoDataFrame containing exactly 1 polygon (e.g. NUTS3 boundary)
-    hex_area    : desired area of each hexagon (same CRS units!)
-    """
-
-    # Ensure polygon geometry
     poly = gdf.geometry.unary_union
 
-    # CRS check: needs to be projected (meters)
     if gdf.crs.is_geographic:
-        raise ValueError("CRS must be projected (meters). Reproject first, e.g. EPSG:3035 for Europe")
+        raise ValueError("CRS must be projected (meters). Reproject first.")
 
-    # Derive edge length from target area
-    # area = (3 * sqrt(3) / 2) * edge^2
+    # edge length from target hex area: area = (3√3 / 2) * edge²
     edge = np.sqrt((2 * area) / (3 * np.sqrt(3)))
-
-    # Hexagon width and height
     w = 2 * edge
     h = np.sqrt(3) * edge
 
     minx, miny, maxx, maxy = poly.bounds
 
-    # Generate grid centers
-    x = np.arange(minx - w, maxx + w, w * 0.75)
-    y = np.arange(miny - h, maxy + h, h)
+    # Vectorised grid centres via meshgrid
+    cols = np.arange(minx - w, maxx + w, w * 0.75)
+    rows = np.arange(miny - h, maxy + h, h)
+    cx, cy = np.meshgrid(cols, rows, indexing='ij')
 
-    hexes = []
-    for i, xi in enumerate(x):
-        for j, yi in enumerate(y):
-            # shift odd rows
-            yi_shift = yi + (h / 2 if i % 2 else 0)
-            hexagon = Polygon([
-                (xi + edge * np.cos(a), yi_shift + edge * np.sin(a))
-                for a in np.linspace(0, 2*np.pi, 7)[:-1]
-            ])
-            # Keep only hexes intersecting polygon
-            if hexagon.intersects(poly):
-                hexes.append(hexagon)
+    # Shift odd columns by half the hex height
+    odd = np.arange(len(cols)) % 2 == 1
+    cy[odd, :] += h / 2
+
+    # Pre-compute vertex offsets once
+    angles = np.linspace(0, 2 * np.pi, 7)[:-1]
+    cos_a = edge * np.cos(angles)
+    sin_a = edge * np.sin(angles)
+
+    # Build all candidate hexagons
+    hexes = [
+        Polygon(zip(xi + cos_a, yi + sin_a))
+        for xi, yi in zip(cx.ravel(), cy.ravel())
+    ]
+
+    # R-tree bulk filter: prunes by bounding box then tests exact intersection
+    tree = STRtree(hexes)
+    hits = tree.query(poly, predicate='intersects')
+    hexes = [hexes[i] for i in hits]
 
     return gpd.GeoDataFrame(geometry=hexes, crs=gdf.crs)
 
 
-def mainhandler_uom(sessionid, uomsize,layername,id):
+def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> dict:
+    cfg = get_config()
+    sessiondir = Path(cfg.tmpdir) / sessionid
 
-    # check if hazard provided is listed in the list of hazards
-    appconfig = read_appyml('app.yml')    
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
-    geoserver_url = appconfig['sdi']['geoserver']['url']
-    wfs_url = appconfig['ows']['base']
-    
-    name_field = appconfig['layers']['datasets'].get(layername)
+    if not sessiondir.exists():
+        raise FileNotFoundError(f'Session directory {sessiondir} not found')
+
+    name_field = cfg.datasets.get(layername)
     if not name_field:
-        error_msg = f"Layername {layername} not found in appconfig"
-        return json.dumps({'error': error_msg})
-    
-    try:
-        gdf = clipfromwfs_cql(id,'app.yml',url=wfs_url, name_field=name_field,typename=layername)
-        if gdf is None:
-            return json.dumps({'error': f'No features found for {layername} with id={id}'})
-        logging.info(f'!-- Spatial reference ID {str(gdf.crs)}')
-    except Exception as e:
-        error_msg = f'Clipping geodataframe using regionname {id} failed with following error {str(e)}'
-        return json.dumps({'error': error_msg})
-    
-    # based on sessionid filepath is there
-    sessiondir = os.path.join(tmpdir, sessionid)
-    if not os.path.exists(sessiondir):
-        error_msg = f'Session directory {sessiondir} not found'
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
+        raise ValueError(f'Layername {layername} not found in config')
 
+    gdf = clipfromwfs_cql(id, url=cfg.ows_base, name_field=name_field, typename=layername)
+    if gdf is None or gdf.empty:
+        raise ValueError(f'No features found for {layername} with id={id}')
+    logger.info('Spatial reference: %s', gdf.crs)
 
-    # check crs, this should be a metric system (default to 3035)
-    try:
-        if not is_metric_crs(gdf.crs):
-            gdf = transformgdf(gdf, 3035)
-            logging.info("!-- Main handler uom: defaulting to 3035 successful")
-        else:
-            logging.info("!-- Main handler uom: no transformation necessary")
-        gdf.to_file(os.path.join(sessiondir,'region.gpkg'), driver="GPKG")
-    except Exception as e:
-        error_msg = f"!-- Main handler uom: transformation to 3035 failed: {str(e)}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
-    logging.info(f'!-- Area of {name_field} is {gdf.area.sum()}')
+    if not is_metric_crs(gdf.crs):
+        gdf = transformgdf(gdf, 3035)
+        logger.info('Reprojected to EPSG:3035')
+    gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
+    logger.info('Region area: %.1f', gdf.area.sum())
 
-    try:
-        # create tempfile with session ID to avoid GeoServer naming conflicts
-        hexgrid = os.path.join(sessiondir, f'hexagons_{sessionid}.gpkg')
-        logging.info(f'!-- Main handler hexagrid created {hexgrid}')
-        # create hexagons based on the passed square meters
-        hexgdf = hexgrid_within(gdf, uomsize)
-        hexgdf.to_file(hexgrid, driver="GPKG")
+    hexgrid_path = sessiondir / f'hexagons_{sessionid}.gpkg'
+    hexgdf = hexgrid_within(gdf, uomsize)
+    hexgdf.to_file(hexgrid_path, driver='GPKG')
+    logger.info('Hexgrid written: %s (%d hexagons)', hexgrid_path, len(hexgdf))
 
-        logging.info(f'!-- Main handler hexagrid created {hexgrid}')
-    except Exception as e:
-        error_msg = f"!-- Main handler uom: Creation of hexagrid for {name_field} failed with error: {str(e)}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
-        
-    
-    # load the data into geoserver
+    store_name = f'hexagons_{sessionid}'
+    gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
     try:
-        # Clean up old layer and datastore before publishing new one
-        store_name = f'hexagons_{sessionid}'
-        try:
-            gs = GS(geoserver_url.replace('/ows', ''), 
-                   appconfig['sdi']['geoserver']['user'],
-                   appconfig['sdi']['geoserver']['password'])
-            # Try to delete old datastore (with recursive=True to delete all layers within it)
-            logging.info(f'!-- Attempting to clean up old datastore: {store_name}')
-            gs.delete_layer_and_store('tmp', store_name)
-        except Exception as cleanup_err:
-            logging.warning(f'!-- Cleanup of old datastore failed (may not exist): {str(cleanup_err)}')
-        
-        # Now publish the new GeoPackage
-        wmslay = publish_gpkg(hexgrid)
-        res = createvieweroutput(wmslay, 'Unit of Measurement', {'uom':'Unit of Measurement'}, geoserver_url)
-        return res
-    except Exception as e:
-        error_msg = f"!-- Main handler uom: Failed to publish hexagrid to GeoServer: {str(e)}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
+        gs.delete_layer_and_store('tmp', store_name)
+    except Exception:
+        logger.debug('Old datastore %s not found (ok on first run)', store_name)
+
+    wmslay = publish_gpkg(str(hexgrid_path))
+    return createvieweroutput(
+        wmslay,
+        'Unit of Measurement',
+        {'uom': 'Unit of Measurement'},
+        cfg.geoserver.url,
+    )

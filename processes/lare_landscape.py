@@ -38,16 +38,13 @@ import geopandas
 import logging
 
 # local
-from processes.utils import read_appyml, tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
+from processes.config import get_config
+from processes.utils import tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
 from processes.utils_geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
-
-# from utils import read_appyml, tempfile
-# from utils_wfs import wfs_filter
-# from utils_raster import cut_wcs
 
 logging.basicConfig(level=logging.INFO)
 
@@ -68,9 +65,9 @@ def handler_eunis(gdf,hazard=None):
     outeunis = lare_raster(gdf, 3035, 'eunis')
     print(type(outeunis))
 
-def classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta):
-        
-        clc_lut = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['hazards']['clc_scores'][hazard]))
+def classifyraster(hazard, clc_array, src_nodata, outclc, meta):
+        cfg = get_config()
+        clc_lut = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', cfg.hazard_clc_scores[hazard]))
 
         #load_reclass_table 
         class_dct = load_reclass_table(clc_lut,'clc','score')
@@ -124,9 +121,9 @@ def handler_coastline(sessionid):
     # return the wms layer to the front end
     sessionid = 321546
     # find region.gpgk from sessionid
-    appconfig = read_appyml('app.yml')
-    geoserver_url = appconfig['ows']['base']
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+    cfg = get_config()
+    geoserver_url = cfg.ows_base
+    tmpdir = cfg.tmpdir
     sessiondir = os.path.join(tmpdir, str(sessionid))
     gdfpath = os.path.join(sessiondir, 'region.gpkg')
     if not os.path.exists(gdfpath):
@@ -180,19 +177,18 @@ def handler_clc(gdf,hazard=None):
         src_nodata = src.nodata
 
     # derive hazards using csv from
-    # acquire base data from app.yml
-    appconfig = read_appyml('app.yml')
-    hazards = appconfig['hazards']['clc_scores']
+    cfg = get_config()
+    hazards = cfg.hazard_clc_scores
     # add the hazards to a list
     lsthazards = []
     if hazard == None:
         # loop over all the hazards in hazards
         for hazard in hazards.keys():
-            clc_hazard = classifyraster(appconfig, hazard, clc_array, src_nodata, outclc, meta)
+            clc_hazard = classifyraster(hazard, clc_array, src_nodata, outclc, meta)
             lsthazards.append(clc_hazard)
             logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
     else:
-        clc_hazard = classifyraster(appconfig, hazard,clc_array, src_nodata, outclc, meta)
+        clc_hazard = classifyraster(hazard, clc_array, src_nodata, outclc, meta)
         lsthazards.append(clc_hazard)
         logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
     
@@ -223,13 +219,12 @@ def handler_dem(gdf):
         nodata_value=-9999.0)
     
     # step 2c is deriving hazards from dem
-    # acquire base data from app.yml
-    appconfig = read_appyml('app.yml')
+    cfg = get_config()
     
     # get url and layer
-    output_path = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', appconfig['paths']['tmp_base']))
+    output_path = os.path.normpath(os.path.join(os.path.dirname( __file__ ), '..', cfg.tmp_base))
     output_path = r'c:\develop\lare\processes\tmp'
-    csv_scores = appconfig['scores']['topo_hazards_csv']
+    csv_scores = cfg.topo_hazards_csv
 
     # create a raster based on DEM where DEM is classified in lowland, midland and upland
     # use topo_elevationscores.csv to create this intermediate dataset
@@ -259,7 +254,7 @@ def mainhandler(name):
     logging.info("----!!! Derive GeodataFram using: {}".format(name))
     
     try:
-        gdf = clipfromwfs_cql(name,'app.yml')
+        gdf = clipfromwfs_cql(name)
         msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
     except Exception as e:
         msg = f'nothing found for {name}, {e}'
@@ -294,10 +289,9 @@ def mainhandler_hazard(name, hazard):
     """    
     msg = None
 
-    # check if hazard provided is listed in the list of hazards
-    appconfig = read_appyml('app.yml')    
-    jsonhazard = appconfig['hazards']['hazard']
-    wmsurl = appconfig['sdi']['geoserver']['url']
+    cfg = get_config()
+    jsonhazard = cfg.hazard_titles
+    wmsurl = cfg.geoserver.url
     try:
         if hazard not in jsonhazard.keys():
             logging.error(f"----!!! Hazard: {hazard} not in list of defined hazards, return None")
@@ -310,7 +304,7 @@ def mainhandler_hazard(name, hazard):
     logging.info("----!!! Derived GeodataFram for region: {}".format(name))
     
     try:
-        gdf = clipfromwfs_cql(name,'app.yml')
+        gdf = clipfromwfs_cql(name)
     except Exception as e:
         msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
         return json.dumps(msg)

@@ -243,60 +243,17 @@ class GS:
     # ---------- Upload GeoPackage as a datastore ----------
     def upload_gpkg_datastore(self, ws, store, gpkg_path,
                               configure="none", update="overwrite"):
+        """Create a GeoPackage-backed datastore via the REST API.
+
+        Points GeoServer at the file on disk (no byte upload).
+        The POST is synchronous — returns 200/201 on success.
         """
-        Uses /workspaces/{ws}/datastores/{store}/file.gpkg (PUT)
-        to upload the file and (optionally) configure the store.
-        See REST 'datastores' endpoints with file/url/external. 
-        
-        Two modes:
-        1. If file is on same server as GeoServer: use file:// URL (faster, more reliable)
-        2. Otherwise: upload bytes (may be async on some GeoServer instances)
-        """
-        # validate file
         if not os.path.isfile(gpkg_path):
             raise FileNotFoundError(gpkg_path)
-        
-        # Verify GPKG is readable and contains layers
-        file_size = os.path.getsize(gpkg_path)
-        logging.info(f"Uploading GPKG: {gpkg_path} (size: {file_size} bytes)")
-        
-        try:
-            import geopandas as gpd
-            test_gdf = gpd.read_file(gpkg_path)
-            logging.info(f"GPKG verified: {len(test_gdf)} features, CRS: {test_gdf.crs}")
-            
-            # Also verify the file is actually readable as GPKG using fiona/GDAL
-            import fiona
-            layers = fiona.listlayers(gpkg_path)
-            logging.info(f"GPKG contains {len(layers)} layer(s): {layers}")
-            
-            if not layers:
-                raise RuntimeError("GPKG file has no layers!")
-            
-            # Ensure file is fully written and closed - important for network filesystems
-            # Force a sync to disk
-            import subprocess
-            if os.name != 'nt':  # Linux
-                try:
-                    subprocess.run(['sync'], check=False, timeout=5)
-                    logging.info("Forced filesystem sync")
-                except:
-                    pass
-                    
-        except Exception as e:
-            logging.error(f"GPKG file validation failed: {e}")
-            raise RuntimeError(f"Invalid GPKG file: {e}")
 
-        # Don't use /file.gpkg endpoint - it always copies the file
-        # Instead, create datastore via JSON with explicit database path
-        # This matches what the manual UI does when referencing an existing file
-        
         gpkg_abs_path = os.path.abspath(gpkg_path)
-        logging.info(f"Creating datastore with database path: {gpkg_abs_path}")
-        
-        # Create datastore via POST with JSON configuration
         endpoint = f"{self.url}/rest/workspaces/{ws}/datastores"
-        
+
         payload = {
             "dataStore": {
                 "name": store,
@@ -305,51 +262,19 @@ class GS:
                 "connectionParameters": {
                     "entry": [
                         {"@key": "database", "$": gpkg_abs_path},
-                        {"@key": "dbtype", "$": "geopkg"}
+                        {"@key": "dbtype", "$": "geopkg"},
                     ]
-                }
+                },
             }
         }
-        
-        logging.info(f"Creating datastore at: {endpoint}")
-        logging.info(f"Payload: {json.dumps(payload, indent=2)}")
-        
+
         r = requests.post(endpoint, auth=self.auth,
-                         headers=self.h_json,
-                         data=json.dumps(payload), timeout=self.timeout)
-        
-        logging.info(f"Datastore creation response: status={r.status_code}, body={r.text[:500] if r.text else 'empty'}")
-        
-        # POST to /datastores should be synchronous (200/201)
-        if r.status_code in [200, 201]:
-            logging.info(f"✓ Datastore created successfully with explicit database path")
-            # Verify the datastore was created with correct path
-            verify_url = f"{self.url}/rest/workspaces/{ws}/datastores/{store}.json"
-            verify_r = requests.get(verify_url, auth=self.auth, timeout=self.timeout)
-            if verify_r.status_code == 200:
-                datastore_info = verify_r.json()
-                conn_params = datastore_info.get('dataStore', {}).get('connectionParameters', {})
-                logging.info(f"Datastore connection parameters: {json.dumps(conn_params, indent=2)}")
-                
-                # Extract and verify database path
-                db_path = None
-                if 'entry' in conn_params:
-                    for entry in conn_params['entry']:
-                        if entry.get('@key') == 'database':
-                            db_path = entry.get('$')
-                            break
-                
-                if db_path == gpkg_abs_path:
-                    logging.info(f"✓ Database path confirmed correct: {db_path}")
-                else:
-                    logging.warning(f"⚠ Database path mismatch! Expected: {gpkg_abs_path}, Got: {db_path}")
-            else:
-                logging.warning(f"Could not verify datastore: {verify_r.status_code}")
-            return
-        else:
-            # Error response
-            logging.error(f"Failed to create datastore: {r.status_code} - {r.text}")
+                          headers=self.h_json,
+                          data=json.dumps(payload), timeout=self.timeout)
+        if r.status_code not in (200, 201):
+            logging.error('Datastore creation failed: %s %s', r.status_code, r.text[:500])
             r.raise_for_status()
+        logging.info('Datastore %s created (path: %s)', store, gpkg_abs_path)
 
     # ---------- List available feature types in a store ----------
     def list_available_featuretypes(self, ws, store):
@@ -760,242 +685,97 @@ def republish_layer(store='hexagons_17727241142485569',
 def publish_gpkg(
     gpkg_path,
     workspace='tmp',
-    style_name='hexagon_transparant',         # e.g., "hexagon_transparant"
+    style_name='hexagon_transparant',
     set_default_style=True,
-    delay_after_upload=2,     # seconds; allow GS to scan and configure store
     republish=False,
     datastore_name=None,
-    layer_name=None
+    layer_name=None,
+    scan_timeout=30,
 ):
+    """Upload a GeoPackage to GeoServer, publish its layers, and set a style.
+
+    Optimised path: datastore creation is synchronous so we poll for
+    available feature types with short intervals instead of fixed sleeps.
     """
-    End-to-end:
-      - ensure workspace
-      - upload .gpkg as datastore (using /file.gpkg)
-      - list available layers
-      - publish each
-      - (optional) set default style for each published layer
-    """
-    # Configuration for GeoServer    
-    appconfig = read_appyml('app.yml')
-    geoserver_url = appconfig['sdi']['geoserver']['resturl']
-    username = appconfig['sdi']['geoserver']['user']
-    password = appconfig['sdi']['geoserver']['password']
-    lname = os.path.basename(gpkg_path).replace('.gpkg','')
+    from processes.config import get_config
+
+    cfg = get_config()
+    geoserver_url = cfg.geoserver.resturl
+    username = cfg.geoserver.user
+    password = cfg.geoserver.password
+    lname = os.path.basename(gpkg_path).replace('.gpkg', '')
     datastore = datastore_name or lname
-    
-    timeout = 300
-    scan_interval = 1
-    layer_wait_timeout = 30  # Wait up to 30 seconds for layers to become available
 
-    try:
-        gdf = gpd.read_file(gpkg_path)
-        crs = gdf.crs
-        logging.info(f"!-- publish_gpkg: GeoPackage read successfully CRS: {gdf.crs}"  )
-    except Exception as e:
-        logging.error(f"!-- publish_gpkg: Failed to read GeoPackage {gpkg_path}: {e}")
-        raise RuntimeError(f"Failed to read GeoPackage: {e}")
-    
-    try:
-        gs = GS(geoserver_url, username, password)
-        gs.ensure_workspace(workspace)  # create if missing  (REST workspaces)  # ref
-        # (Workspaces endpoint is under the GeoServer REST umbrella)  # [5](https://docs.geoserver.org/stable/en/user/rest/)
-    except Exception as e:
-        logging.error(f"!-- publish_gpkg: Failed to connect to GeoServer or ensure workspace: {e}")
-        raise RuntimeError(f"GeoServer connection/workspace error: {e}")
-    except GeoserverException as ge:    
-        logging.error(f"!-- publish_gpkg: GeoserverException while ensuring workspace: {ge}")
-        raise RuntimeError(f"GeoServer workspace error: {ge}")
+    gs = GS(geoserver_url, username, password)
+    gs.ensure_workspace(workspace)
 
-    # Upload GeoPackage to store
-    try:
-        # Use configure="none" - don't auto-configure layers, we'll do it manually
-        # This works better with async (202) uploads where configure="first" may fail
-        gs.upload_gpkg_datastore(workspace, datastore, gpkg_path,
-                                configure="none", update="overwrite")
-        # The /datastores ... /file.gpkg endpoint accepts the file bytes and
-        # creates/updates the file-based store.  # [1](https://docs.geoserver.org/stable/en/user/rest/api/datastores.html)
-        
-        # Allow GeoServer time to scan and configure the datastore
-        time.sleep(delay_after_upload)
-        logging.info(f"!-- publish_gpkg: GPKG uploaded with configure=none,will manually publish layers")
-        
-        # Immediately check if GeoServer can see any layers in the datastore
-        try:
-            test_available = gs.list_available_featuretypes(workspace, datastore)
-            logging.info(f"!-- publish_gpkg: Available layers immediately after upload: {test_available}")
-        except Exception as e:
-            logging.warning(f"!-- publish_gpkg: Could not list available layers after upload: {e}")
-    except Exception as e:
-        logging.error(f"!-- publish_gpkg: Failed to upload GeoPackage to GeoServer: {e}")
-        raise RuntimeError(f"GeoServer upload error: {e}")  
-    except GeoserverException as ge:
-        logging.error(f"!-- publish_gpkg: GeoserverException while uploading GeoPackage: {ge}")
-        raise RuntimeError(f"GeoServer upload error: {ge}")
+    gs.upload_gpkg_datastore(workspace, datastore, gpkg_path,
+                             configure="none", update="overwrite")
 
-
-    # -------------------------------------------
-    # 2. Wait for GeoServer to scan available feature types
-    # -------------------------------------------
-    logging.info("!-- publish_gpkg: Waiting for GeoServer to detect feature types...")
-
-    deadline = time.time() + timeout
+    # Poll for available feature types (short interval, bounded timeout)
     available = []
-
-    # Since we used configure="none", we need to check for AVAILABLE (not configured) feature types
+    deadline = time.time() + scan_timeout
     while time.time() < deadline:
         try:
             available = gs.list_available_featuretypes(workspace, datastore)
             if available:
-                logging.info(f"!-- publish_gpkg: Found available feature types: {available}")
                 break
-        except FailedRequestError:
-            logging.warning("!-- publish_gpkg: GeoServer not ready yet (FailedRequestError), retrying...")
-        except Exception as e:
-            logging.warning(f"!-- publish_gpkg: Error checking available types: {e}")
+        except Exception:
+            pass
+        time.sleep(0.3)
 
-        time.sleep(scan_interval)
-
-    # Fallback: list configured types if "available" is empty
+    # Fallback: read layer names directly from the GPKG file
     if not available:
-        logging.warning("!-- publish_gpkg: No 'available' feature types found — checking configured types.")
-        url = f"{geoserver_url}/rest/workspaces/{workspace}/datastores/{datastore}/featuretypes.json"
+        import fiona
+        available = fiona.listlayers(gpkg_path)
+        logging.info('publish_gpkg: layers from GPKG file: %s', available)
 
-        r = requests.get(url, auth=HTTPBasicAuth(username, password), timeout=60)
-        r.raise_for_status()
-        data = r.json()
-        logging.info(f"!-- publish_gpkg: Raw featureTypes response: {json.dumps(data, indent=2)}")
-
-        if "featureTypes" in data:
-            ft_data = data["featureTypes"]
-            # Handle different response formats from GeoServer
-            if isinstance(ft_data, dict):
-                # Standard response: {"featureType": [...]}
-                available = [ft["name"] for ft in ft_data.get("featureType", []) if ft.get("name")]
-            elif isinstance(ft_data, str):
-                # Single layer name as string - only add if non-empty
-                if ft_data.strip():
-                    logging.info(f"!-- publish_gpkg: featureTypes is a string: '{ft_data}'")
-                    available = [ft_data]
-                else:
-                    logging.warning(f"!-- publish_gpkg: featureTypes is an empty string")
-            elif isinstance(ft_data, list):
-                # List of layer names - filter out empty strings
-                available = [name for name in ft_data if name and str(name).strip()]
-            else:
-                logging.warning(f"!-- publish_gpkg: Unexpected featureTypes format: {type(ft_data)}")
-
-    # Last resort: read layer names directly from GPKG
     if not available:
-        logging.warning("!-- publish_gpkg: No feature types from GeoServer — reading layers from GPKG directly.")
-        try:
-            import fiona
-            available = fiona.listlayers(gpkg_path)
-            logging.info(f"!-- publish_gpkg: Found layers in GPKG: {available}")
-        except Exception as e:
-            logging.error(f"!-- publish_gpkg: Failed to read layers from GPKG: {e}")
-    
-    if not available:
-        raise RuntimeError("!-- publish_gpkg: No feature types found — GeoServer did not scan the GPKG and could not read from file.")
+        raise RuntimeError('No feature types found in GeoServer or GPKG file')
 
-    # -------------------------------------------
-    # 3. Publish each layer manually
-    # -------------------------------------------
     published_layers = []
-
     for ft_name in available:
-        # Skip empty or whitespace-only names
-        if not ft_name or not str(ft_name).strip():
-            logging.warning(f"!-- publish_gpkg: Skipping empty layer name")
-            continue
-        
         ft_name = str(ft_name).strip()
+        if not ft_name:
+            continue
 
-        if layer_name:
-            if len(available) == 1:
-                publish_name = layer_name
-            else:
-                publish_name = f"{layer_name}_{ft_name}"
-        else:
-            publish_name = ft_name
+        publish_name = layer_name if (layer_name and len(available) == 1) else ft_name
 
         if republish:
-            logging.info(f"!-- publish_gpkg: Republish enabled, deleting existing layer/feature type '{publish_name}'")
             gs.delete_layer(workspace, publish_name)
             gs.delete_featuretype(workspace, datastore, publish_name)
-        
-        # Manually publish the feature type
-        logging.info(f"!-- publish_gpkg: Publishing layer: '{publish_name}' (native: '{ft_name}')")
-        try:
-            gs.publish_featuretype(
-                ws=workspace,
-                store=datastore,
-                layer_name=publish_name,
-                native_name=ft_name if publish_name != ft_name else None
-            )
-            logging.info(f"!-- publish_gpkg: Successfully published feature type: {publish_name}")
-            
-            # Trigger a catalog reload to ensure GeoServer recognizes the new feature type
-            gs.reload_catalog()
-            time.sleep(2.0)  # Give GeoServer time to process the reload
-            
-            # Explicitly ensure layer resource exists
-            logging.info(f"!-- publish_gpkg: Ensuring layer resource exists for: {publish_name}")
-            layer_created = gs.ensure_layer_resource(workspace, publish_name)
-            
-            if layer_created:
-                logging.info(f"!-- publish_gpkg: Layer resource confirmed for {ft_name}")
-            else:
-                logging.warning(f"!-- publish_gpkg: Could not create/verify layer resource for {ft_name}")
-            
-            published_layers.append(publish_name)
 
-        except Exception as e:
-            logging.error(f"!-- publish_gpkg: Failed to publish {ft_name}: {e}")
-            raise
-        
-        # Try to set style, but don't fail if it doesn't work
+        gs.publish_featuretype(
+            ws=workspace,
+            store=datastore,
+            layer_name=publish_name,
+            native_name=ft_name if publish_name != ft_name else None,
+        )
+        published_layers.append(publish_name)
+
         if style_name:
-            # Add a longer delay to ensure layer is fully registered
-            # Deployment servers may take longer to make layers discoverable
-            time.sleep(3.0)  # Increased from 1.0s for deployment servers
-            
             try:
-                logging.info(f"!-- publish_gpkg: Setting default style '{style_name}' for layer: {publish_name}")
-                # Skip verification since it's unreliable on deployment - just try to set the style
-                # Layer should exist since we just created it and reloaded the catalog
-                gs.set_default_style(workspace, publish_name, style_name, wait_for_layer=False, skip_verification=True)
-                logging.info(f"!-- publish_gpkg: Successfully set style for {publish_name}")
-                    
-            except requests.exceptions.HTTPError as he:
-                logging.warning(f"!-- publish_gpkg: HTTP error setting style for {publish_name}: {he}. Response: {he.response.text if hasattr(he, 'response') and he.response else 'No response'}. Layer is published but without style.")
-            except Exception as e:
-                logging.warning(f"!-- publish_gpkg: Failed to set style for {publish_name}: {e}. Layer is published but without style.")
+                gs.set_default_style(workspace, publish_name, style_name,
+                                     wait_for_layer=True, max_wait=5,
+                                     skip_verification=False)
+            except Exception as exc:
+                logging.warning('Style %s not set for %s: %s', style_name, publish_name, exc)
 
-    logging.info(f"!-- publish_gpkg: Successfully published layers: {published_layers}")
+    logging.info('publish_gpkg: published %s', published_layers)
     return published_layers
 
 
 def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
-    """creates specifc output for the map viewer environment 
-
-    Args:
-        wmslay (list)    : list of layers created in the geoserver
-        folder (string)  : folder description for the viewer so it can aggregate the layers
-        jsontitles (json): jsonobject with names and titles of the layer (so readable titles and technical names)
-        wmsurl (string)  : url to the geoserver ows address
+    """Build the viewer-compatible layer catalogue structure.
 
     Returns:
-        json             : returns a json with a structure that is used in the viewer
+        list[dict]: one entry per layer group, ready for JSON serialisation.
     """
-
-    logging.info(f"!-- create viewer input '{wmslay}', {folder}, {jsontitles}, {wmsurl}")
-    res = []
-    res_dict = defaultdict(list)  # <-- cleaner
+    res_dict = defaultdict(list)
 
     for lname in wmslay:
         parts = lname.split('_')
         if len(parts) < 2:
-            logging.info(f"Layer name '{lname}' has no hazard part, {lname} will be used")
             name = folder
             title = next(iter(jsontitles.values()))
         else:
@@ -1004,19 +784,11 @@ def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
 
         res_dict[name].append({
             "name": title,
-            "layer": 'tmp:' + lname,
-            "url": wmsurl + '/' + 'wms'
+            "layer": f"tmp:{lname}",
+            "url": f"{wmsurl}/wms",
         })
 
-    # Convert to desired structure
-    for i, entries in res_dict.items():
-        res.append({
-            "folder": folder,
-            "contents": entries
-        })
-
-    print(res)
-    return json.dumps(res, indent=2)
+    return [{"folder": folder, "contents": entries} for entries in res_dict.values()]
 
 
 def filtervectorbyvector(geoserver_url,filtergdf,filter_crs,kcslayer,kcs_crs):

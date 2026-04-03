@@ -3,8 +3,16 @@ services:
     build: .
     ports:
       - "5000:80"
+    # Dev: live code + Gunicorn hot reload (see README). For production, drop
+    # code/tmp mounts, remove command / PYTHONPATH, tune WSGI_WORKERS if needed.
+    environment:
+      PYTHONPATH: /pygeoapi
+    command: ["run-with-hot-reload"]
     volumes:
       - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:ro
+      - ./processes:/pygeoapi/processes
+      - ./app.yml:/pygeoapi/app.yml:ro
+      - ./tmp:/pygeoapi/tmp
 
   # --- Uncomment when LARE processes are ready ---
   # geoserver:

@@ -38,15 +38,11 @@ from shapely.geometry import Polygon
 import numpy as np
 
 # local
-from processes.utils import read_appyml, tempfile
+from processes.config import get_config
+from processes.utils import tempfile
 from processes.utils_wfs import clipfromwfs_cql
 from processes.utils_vector import transformgdf, is_metric_crs
 from processes.utils_geoserver import publish_gpkg, createvieweroutput
-
-# from utils import read_appyml, tempfile
-# from utils_wfs import clipfromwfs_cql
-# from utils_vector import transformgdf, is_metric_crs
-# from utils_raster import cut_wcs
 
 logging.basicConfig(level=logging.INFO)
 
@@ -54,13 +50,12 @@ def mainhandler_region(name):
         
     msg = None
 
-    # check if hazard provided is listed in the list of hazards
-    appconfig = read_appyml('app.yml')    
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
-    wmsurl = appconfig['sdi']['geoserver']['url']
+    cfg = get_config()
+    tmpdir = cfg.tmpdir
+    wmsurl = cfg.geoserver.url
 
     try:
-        gdf = clipfromwfs_cql(name,'app.yml')
+        gdf = clipfromwfs_cql(name)
         agpkg = tempfile(tmpdir,'region_','.gpkg')
         logging.info(f'!-- Main handler region: created {agpkg}')
         # save the geodataframe to a geopackage file

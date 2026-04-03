@@ -43,9 +43,9 @@ from owslib.fes import PropertyIsLike, And
 from owslib.wfs import WebFeatureService
 from owslib.etree import etree as ET
 
-# from processes.utils import *
 from processes.utils import read_appyml
-logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 
 def _is_numeric_literal(value):
@@ -137,28 +137,32 @@ def wfs_filter(app_cfg_path="app.yml",
     return gdf
 
 
-def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=None, typename=None):
-    """By applying a CQL Filter on the WFS it is possible to aquire a Geodataframe
+def clipfromwfs_cql(filtervalue, url=None, name_field=None, typename=None):
+    """Fetch a GeoDataFrame from a WFS using a CQL equality filter.
+
+    All optional parameters fall back to values from the centralised
+    ``get_config()`` when not supplied.
 
     Args:
-        filtervalue (str): Should be a value to filter the WFS using a CQL Filter
-        app_cfg_path (str, optional): Used to derive crucial information if all the following parameters are none. Defaults to "app.yml".
-        url (str, optional): If not none, will be used as url of the geoserver (/ows). Defaults to None, in that case url will be derived from app.yml.
-        name_field (str, optional): Field to filter on. Defaults to None, in that case name_field will be derived from app.yml.
-        typename (str, optional): typename equals to layername of the service provided. Defaults to None, in that case typename will be derived from app.yml.
+        filtervalue: Value to match against *name_field* via CQL.
+        url: OWS endpoint URL.  Defaults to config ``ows.wfs_nuts.url``.
+        name_field: Attribute column to filter on.  Defaults to config.
+        typename: WFS layer name.  Defaults to config.
 
     Returns:
-        Geodataframe : Geodataframe corresponding with the filtered feature based on filtervalue
+        GeoDataFrame or None on network / parse failure.
     """
-    cfg = read_appyml(app_cfg_path)
+    from processes.config import get_config
 
-    wfs_cfg = cfg["ows"]["wfs_nuts"]
-    if url == None:
-        url = wfs_cfg["url"]                       # url of the geoserver https://desirmed.openearth.eu/geoserver/ows
-    if typename == None:
-        typename = wfs_cfg["layer"]                # "region:nuts_2021"
-    if name_field == None:
-        name_field = wfs_cfg["name_field"]         # "nuts_name"
+    cfg = get_config()
+    wfs_nuts = cfg.wfs_nuts
+
+    if url is None:
+        url = wfs_nuts.url
+    if typename is None:
+        typename = wfs_nuts.layer
+    if name_field is None:
+        name_field = wfs_nuts.name_field
 
     cql_literal = _to_cql_literal(filtervalue)
     params = {
@@ -167,33 +171,18 @@ def clipfromwfs_cql(filtervalue, app_cfg_path="app.yml",url=None, name_field=Non
         "request": "GetFeature",
         "typename": typename,
         "outputFormat": "application/json",
-        "cql_filter": f"{name_field} = {cql_literal}"  # exact match, numeric or quoted string literal
+        "cql_filter": f"{name_field} = {cql_literal}",
     }
-    print(f'!-- Requesting WFS with parameters: {params}')
+    logger.info('Requesting WFS: %s', params)
     try:
         r = requests.get(url, params=params)
         r.raise_for_status()
-        
-        # Check if response is valid JSON/GeoJSON
-        try:
-            response_json = r.json()
-            # Validate that it's GeoJSON with features
-            if not isinstance(response_json, dict) or 'features' not in response_json:
-                error_msg = f"Invalid GeoJSON response: expected object with 'features' key. Got: {response_json}"
-                logging.error(f'!-- WFS {typename} CQL filter error: {error_msg}')
-                return None
-        except json.JSONDecodeError as je:
-            error_msg = f"Response is not JSON. First 500 chars: {r.content[:500]}"
-            logging.error(f'!-- WFS {typename} CQL filter error: {error_msg}')
-            return None
-        
-        # Now parse as GeoDataFrame
         gdf = gpd.read_file(BytesIO(r.content))
         if gdf.empty:
-            logging.warning(f'!-- WFS filtering returned empty GeoDataFrame for {typename} where {name_field} = {filtervalue}')
+            logger.warning('Empty result for %s where %s = %s', typename, name_field, filtervalue)
         else:
-            logging.info(f'!-- succesfull filtering wfs with parameters for layer {typename} and colum/value {name_field} = {filtervalue}')
-    except Exception as e:
-        logging.error(f'!-- filtering wfs failed for {typename} with filter {params.get("cql_filter")}: {str(e)}')
-        gdf = None    
+            logger.info('WFS filter OK: %s %s=%s (%d features)', typename, name_field, filtervalue, len(gdf))
+    except Exception:
+        logger.exception('WFS request failed for %s', typename)
+        gdf = None
     return gdf

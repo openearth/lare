@@ -8,31 +8,28 @@ license = {text = "GPL-3.0"}
 dependencies = [
     "pydantic>=2",
     "pyyaml",
-]
-
-[project.optional-dependencies]
-full = [
-    "pygeoapi",
-    "flask",
-    "flask-cors",
     "geopandas",
-    "rasterio",
     "numpy",
     "pandas",
     "shapely",
     "fiona",
     "pyproj",
+    "requests",
+    "owslib",
+    "geojson",
+    "sqlalchemy",
+    "geoserver-rest",
+    "gsconfig-py3",
+]
+
+[project.optional-dependencies]
+full = [
+    "rasterio",
     "scipy",
     "xarray",
     "rioxarray",
     "psutil",
-    "owslib",
-    "requests",
-    "geojson",
-    "sqlalchemy",
     "psycopg2-binary",
-    "geoserver-rest",
-    "gsconfig-py3",
 ]
 dev = [
     "pytest",

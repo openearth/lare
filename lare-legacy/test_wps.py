@@ -35,7 +35,7 @@ request. This request returns an xml containing all in- and outputs.
 """
 
 # DescribeProcess gives insight in input and output parameters
-process = wps.describeprocess('ultimate_question')
+process = wps.describeprocess('lare_start')
 process.abstract
 
 for input in process.dataInputs:
@@ -51,18 +51,13 @@ the process by means of the 'Execute' request. The service returns an xml contai
 all process outputs. These outputs can be read by Matlab and can also be plotted or
 used for other operations.
 """
-# define inputs, which is an array with several objects of several dataTypes (as listed below)
-inputs = [('location','POINT(3 52)'),
-          ('startdate','2013-08-21 00:00'),
-          ('enddate','2013-08-29 23:00'),
-          ('frequency','HOURLY')]
+# lare_start has no inputs (session id is returned as JSON)
+inputs = []
 
-execution = wps.execute(process.identifier,inputs)
+execution = wps.execute(process.identifier, inputs)
 for output in execution.processOutputs:
     print(output.identifier)
     print(output.data)
-
-# this will yield data for tide for 1 location for the given datetime range
 
 
 

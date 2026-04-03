@@ -97,6 +97,13 @@ def read_susceptibilities():
 	return confpath
 
 def read_appyml(fn='app.yml'):
+	"""Deprecated — use ``from processes.config import get_config`` instead."""
+	import warnings
+	warnings.warn(
+		"read_appyml() is deprecated, use get_config() from processes.config",
+		DeprecationWarning,
+		stacklevel=2,
+	)
 	if not os.path.isfile(fn):
 		fn = os.path.join(os.path.dirname(os.path.abspath(__file__)),'app.yml')
 		if not os.path.isfile(fn):

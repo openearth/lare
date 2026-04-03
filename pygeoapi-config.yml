@@ -58,11 +58,11 @@ resources:
   #   type: process
   #   processor:
   #     name: pygeoapi.process.lare_region.LareRegionProcessor
-  #
-  # lare-uom:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_uom.LareUomProcessor
+
+  lare-uom:
+    type: process
+    processor:
+      name: processes.process_uom.LareUomProcessor
   #
   # lare-coastal:
   #   type: process
