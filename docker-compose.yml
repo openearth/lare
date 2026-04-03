@@ -1,0 +1,20 @@
+services:
+  pygeoapi:
+    build: .
+    ports:
+      - "5000:80"
+    volumes:
+      - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:ro
+
+  # --- Uncomment when LARE processes are ready ---
+  # geoserver:
+  #   image: kartoza/geoserver:2.26.1
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - GEOSERVER_ADMIN_PASSWORD=geoserver
+  #   volumes:
+  #     - geoserver-data:/opt/geoserver/data_dir
+
+# volumes:
+#   geoserver-data:

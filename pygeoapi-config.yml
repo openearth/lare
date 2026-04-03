@@ -1,0 +1,87 @@
+server:
+  bind:
+    host: 0.0.0.0
+    port: 80
+  url: http://localhost:5000
+  mimetype: application/json; charset=UTF-8
+  encoding: utf-8
+  languages:
+    - en-US
+  cors: true
+  pretty_print: true
+  limits:
+    max_items: 100
+  map:
+    url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  manager:
+    name: TinyDB
+    connection: /tmp/pygeoapi-process-manager.db
+    output_dir: /tmp/
+
+logging:
+  level: INFO
+
+metadata:
+  identification:
+    title: LARE - Landscape Restoration Engine
+    description: OGC API Processes for landscape archetype analysis, hazard assessment, and coastal zone management.
+    keywords:
+      - landscape
+      - archetype
+      - hazard
+      - coastal
+      - restoration
+    keywords_type: theme
+    terms_of_service: https://creativecommons.org/licenses/by/4.0/
+    url: https://github.com/openearth/lare
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+  provider:
+    name: Deltares
+    url: https://www.deltares.nl
+  contact:
+    name: Gerrit Hendriksen
+    position: Developer
+    email: gerrit.hendriksen@deltares.nl
+    url: https://www.deltares.nl
+    role: pointOfContact
+
+resources:
+  ultimate-question:
+    type: process
+    processor:
+      name: pygeoapi.process.ultimate_question.UltimateQuestionProcessor
+
+  # --- LARE processes (uncomment when dependencies are migrated) ---
+  # Use the same pattern: pygeoapi.process.<module>.<ProcessorClass>
+  # lare-start:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_start.LareStartProcessor
+  #
+  # lare-region:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_region.LareRegionProcessor
+  #
+  # lare-uom:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_uom.LareUomProcessor
+  #
+  # lare-coastal:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_coastal.LareCoastalProcessor
+  #
+  # lare-hazard:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_hazard.LareHazardProcessor
+  #
+  # lare-uomkcs:
+  #   type: process
+  #   processor:
+  #     name: pygeoapi.process.lare_uomkcs.LareUomKcsProcessor
