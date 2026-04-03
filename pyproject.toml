@@ -1,0 +1,47 @@
+[project]
+name = "lare"
+version = "0.1.0"
+description = "Landscape Archetype Restoration Engine - OGC API Processes"
+requires-python = ">=3.11"
+license = {text = "GPL-3.0"}
+
+dependencies = [
+    "pydantic>=2",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+full = [
+    "pygeoapi",
+    "flask",
+    "flask-cors",
+    "geopandas",
+    "rasterio",
+    "numpy",
+    "pandas",
+    "shapely",
+    "fiona",
+    "pyproj",
+    "scipy",
+    "xarray",
+    "rioxarray",
+    "psutil",
+    "owslib",
+    "requests",
+    "geojson",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "geoserver-rest",
+    "gsconfig-py3",
+]
+dev = [
+    "pytest",
+    "ipykernel",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["processes"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

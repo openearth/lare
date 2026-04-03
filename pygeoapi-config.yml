@@ -42,24 +42,17 @@ metadata:
     name: Deltares
     url: https://www.deltares.nl
   contact:
-    name: Gerrit Hendriksen
-    position: Developer
-    email: gerrit.hendriksen@deltares.nl
+    name: Ioanna Micha, Gerrit Hendriksen
+    position: Geospatial Developer, Geospatial Advisor
+    email: ioanna.micha@deltares.nl, gerrit.hendriksen@deltares.nl
     url: https://www.deltares.nl
     role: pointOfContact
 
 resources:
-  ultimate-question:
+  lare-start:
     type: process
     processor:
-      name: pygeoapi.process.ultimate_question.UltimateQuestionProcessor
-
-  # --- LARE processes (uncomment when dependencies are migrated) ---
-  # Use the same pattern: pygeoapi.process.<module>.<ProcessorClass>
-  # lare-start:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_start.LareStartProcessor
+      name: processes.process_start.LareStartProcessor
   #
   # lare-region:
   #   type: process

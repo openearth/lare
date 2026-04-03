@@ -2,8 +2,8 @@
 # Copyright notice
 #   --------------------------------------------------------------------
 #   Copyright (C) 2025 Deltares
-#       Gerrit Hendriksen
-#       gerrit.hendriksen@deltares.nl
+#       Ioanna Micha, Gerrit Hendriksen
+#       ioanna.micha@deltares.nl, gerrit.hendriksen@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -25,35 +25,21 @@
 # Sign up to recieve regular updates of this function, and to contribute
 # your own tools.
 
-# native
-import os
-import json
-import random
-import yaml
 import time
 import logging
+from pathlib import Path
 
-# local
-from processes.utils import read_appyml, tempfile
+from processes.config import get_config
 
-def mainhandler():
-        
-    msg = None
+logger = logging.getLogger(__name__)
 
-    # check if hazard provided is listed in the list of hazards
-    appconfig = read_appyml('app.yml')    
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
 
-    #create unique id that acts as sessionid
-    sessionid = str(time.time()).replace('.','')
-        
-    sessiondir = os.path.join(tmpdir, str(sessionid))
-    if not os.path.exists(sessiondir):
-        os.makedirs(sessiondir)
-        logging.info(f'-- Session directory created: {sessiondir}')
+def mainhandler() -> dict:
+    cfg = get_config()
 
-    try:
-        merged = {"sessionid": sessionid}
-        return json.dumps(merged, indent=2)
-    except Exception as e:
-        return json.dumps(msg)
+    sessionid = str(time.time()).replace('.', '')
+    sessiondir = Path(cfg.tmpdir) / sessionid
+    sessiondir.mkdir(parents=True, exist_ok=True)
+    logger.info('Session directory created: %s', sessiondir)
+
+    return {"sessionid": sessionid}
