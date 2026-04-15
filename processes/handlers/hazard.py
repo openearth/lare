@@ -40,11 +40,11 @@ import logging
 # local
 from processes.config import get_config
 from processes.utils import tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
-from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
+from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
-from processes.utils_geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
+from processes.utils.geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
 
 logging.basicConfig(level=logging.INFO)
 

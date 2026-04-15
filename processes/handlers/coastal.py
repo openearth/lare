@@ -4,6 +4,8 @@
 #   Copyright (C) 2026 Deltares
 #       Gerrit Hendriksen
 #       gerrit.hendriksen@deltares.nl
+#       Ioanna Micha
+#       ioanna.micha@deltares.nl
 #
 #   This library is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -45,10 +47,10 @@ from rasterio.transform import Affine
 
 # local
 from processes.config import get_config
-from processes.utils_raster import aggregate_coastal, lare_raster, reclassify_fast
-from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS, filtervectorbyvector
+from processes.utils.raster import aggregate_coastal, lare_raster, reclassify_fast
+from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.geoserver import publish_gpkg, createvieweroutput, GS, filtervectorbyvector
 
 def mainhandler_coastal(sessionid):
     """

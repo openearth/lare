@@ -2,7 +2,7 @@ import logging
 
 from pygeoapi.process.base import BaseProcessor
 
-from processes.lare_start import mainhandler
+from processes.handlers.start import mainhandler
 
 LOGGER = logging.getLogger(__name__)
 

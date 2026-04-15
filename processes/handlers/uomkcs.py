@@ -42,16 +42,16 @@ import fiona
 
 # local
 from processes.utils import read_appyml, tempfile
-from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
-from processes.utils_raster import lare_raster, aggregate_hazard
+from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
+from processes.utils.raster import lare_raster, aggregate_hazard
 
 
-# from utils import read_appyml, tempfile
-# from utils_wfs import clipfromwfs_cql
-# from utils_wfs import wfs_filter
-# from utils_raster import cut_wcs
+# from processes.utils import read_appyml, tempfile
+# from processes.utils.wfs import clipfromwfs_cql
+# from processes.utils.wfs import wfs_filter
+# from processes.utils.raster import cut_wcs
 
 logging.basicConfig(level=logging.INFO)
 

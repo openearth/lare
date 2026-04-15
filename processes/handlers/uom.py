@@ -34,9 +34,9 @@ from shapely import STRtree
 from shapely.geometry import Polygon
 
 from processes.config import get_config
-from processes.utils_wfs import clipfromwfs_cql
-from processes.utils_vector import transformgdf, is_metric_crs
-from processes.utils_geoserver import publish_gpkg, createvieweroutput, GS
+from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.geoserver import publish_gpkg, createvieweroutput, GS
 
 logger = logging.getLogger(__name__)
 

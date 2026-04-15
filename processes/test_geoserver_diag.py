@@ -189,7 +189,7 @@ if __name__ == "__main__":
     
     # Try to read from app.yml if available
     try:
-        from utils import read_appyml
+        from processes.utils import read_appyml
         appconfig = read_appyml('app.yml')
         GEOSERVER_URL = appconfig['sdi']['geoserver']['url']
         USERNAME = appconfig['sdi']['geoserver']['user']

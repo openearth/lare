@@ -34,8 +34,8 @@ import pandas as pd
 import numpy as np
 import rasterio
 from processes.utils import load_reclass_table_continousdata,read_appyml
-#from processes.utils_vector import load_polygon_postgis
-from processes.utils_raster import open_raster, normalize_dtype, ensure_nodata_compatible, save_raster, reproject_to_4326, save_geotiff
+#from processes.utils.vector import load_polygon_postgis
+from processes.utils.raster import open_raster, normalize_dtype, ensure_nodata_compatible, save_raster, reproject_to_4326, save_geotiff
 
 
 def classify_elevation_raster(raster_path, classification_df):

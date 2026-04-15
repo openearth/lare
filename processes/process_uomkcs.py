@@ -2,7 +2,7 @@ import logging
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from processes.lare_uomkcs import mainhandler_uomkcs
+from processes.handlers.uomkcs import mainhandler_uomkcs
 
 LOGGER = logging.getLogger(__name__)
 

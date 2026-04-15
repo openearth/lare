@@ -33,10 +33,10 @@
 import os
 import xarray as xr
 import numpy as np
-from utils_vector import load_polygon_postgis
-from utils import load_reclass_table
-from utils_raster import default_nodata, clip_raster, normalize_dtype, ensure_nodata_compatible
-from utils_raster import save_raster, reproject_to_4326, build_and_save_stack_from_list
+from processes.utils.vector import load_polygon_postgis
+from processes.utils import load_reclass_table
+from processes.utils.raster import default_nodata, clip_raster, normalize_dtype, ensure_nodata_compatible
+from processes.utils.raster import save_raster, reproject_to_4326, build_and_save_stack_from_list
 
 
 def coerce_reclass_dict_to_array_dtype(array, reclass_dict):

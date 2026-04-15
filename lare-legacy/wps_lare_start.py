@@ -50,7 +50,7 @@ from pywps.inout.outputs import ComplexOutput
 from pywps.app.Common import Metadata
 
 # local
-from processes.lare_start import mainhandler
+from processes.handlers.start import mainhandler
 
 class WpsStart(Process):
 
