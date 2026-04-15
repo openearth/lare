@@ -53,28 +53,23 @@ resources:
     type: process
     processor:
       name: processes.process_start.LareStartProcessor
-  #
-  # lare-region:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_region.LareRegionProcessor
 
   lare-uom:
     type: process
     processor:
       name: processes.process_uom.LareUomProcessor
-  #
-  # lare-coastal:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_coastal.LareCoastalProcessor
-  #
-  # lare-hazard:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_hazard.LareHazardProcessor
-  #
-  # lare-uomkcs:
-  #   type: process
-  #   processor:
-  #     name: pygeoapi.process.lare_uomkcs.LareUomKcsProcessor
+
+  lare-coastal:
+    type: process
+    processor:
+      name: processes.process_coastal.LareCoastalProcessor
+
+  lare-hazard:
+    type: process
+    processor:
+      name: processes.process_hazard.LareHazardProcessor
+
+  lare-uomkcs:
+    type: process
+    processor:
+      name: processes.process_uomkcs.LareUomKcsProcessor
