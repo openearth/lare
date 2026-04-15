@@ -63,12 +63,15 @@ class LareUomKcsProcessor(BaseProcessor):
         except ValidationError as exc:
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
-        result = mainhandler_uomkcs(
-            inputs.sessionid,
-            inputs.kcs,
-            inputs.hazard,
-            inputs.archetype,
-        )
+        try:
+            result = mainhandler_uomkcs(
+                inputs.sessionid,
+                inputs.kcs,
+                inputs.hazard,
+                inputs.archetype,
+            )
+        except Exception as exc:
+            raise ProcessorExecuteError(str(exc)) from exc
         return 'application/json', result
 
     def __repr__(self):

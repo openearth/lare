@@ -27,8 +27,6 @@
 
 # native
 import os
-import json
-import yaml
 
 # imports
 import numpy as np
@@ -46,7 +44,7 @@ from processes.utils.raster import cut_wcs, compute_slope_aspect_from_dem, recla
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
 from processes.utils.geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 """
@@ -260,19 +258,11 @@ def mainhandler_hazard(name, hazard):
     wmsurl = cfg.geoserver.url
 
     if hazard not in jsonhazard:
-        return json.dumps(f'Hazard {hazard!r} not in defined hazards')
+        raise ValueError(f'Hazard {hazard!r} not in defined hazards')
 
-    try:
-        gdf = clipfromwfs_cql(name)
-    except Exception as e:
-        return json.dumps(f'WFS clip for region {name!r} failed: {e}')
-    
-    # call the handler to do the magic
-    try:
-        wmslay = handler_clc(gdf, hazard=hazard)
-        res = createvieweroutput(wmslay, 'Mitigation score', jsonhazard, wmsurl)
-        return res
+    gdf = clipfromwfs_cql(name)
+    if gdf is None or gdf.empty:
+        raise ValueError(f'No features found for region {name!r}')
 
-    except Exception as e:
-        msg = f"!-- Main handler hazard: Creation of rasters with clip for name {name} failed with error: {str(e)}"
-        return json.dumps(msg)
+    wmslay = handler_clc(gdf, hazard=hazard)
+    return createvieweroutput(wmslay, 'Mitigation score', jsonhazard, wmsurl)

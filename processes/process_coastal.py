@@ -45,7 +45,10 @@ class LareCoastalProcessor(BaseProcessor):
         except ValidationError as exc:
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
-        result = mainhandler_coastal(inputs.sessionid)
+        try:
+            result = mainhandler_coastal(inputs.sessionid)
+        except Exception as exc:
+            raise ProcessorExecuteError(str(exc)) from exc
         return 'application/json', result
 
     def __repr__(self):

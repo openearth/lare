@@ -27,35 +27,20 @@
 
 # native
 import os
-import json
-import yaml
-import shutil
-from collections import defaultdict
 import logging
 
 # imports
 import geopandas as gpd
-import rasterio
-from shapely.geometry import Polygon
 import numpy as np
 import fiona
 
 # local
 from processes.config import get_config
 from processes.handlers.session import load_session
-from processes.utils import read_appyml, tempfile
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
-from processes.utils.geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
+from processes.utils.geoserver import filtervectorbyvector, createvieweroutput, republish_layer
 from processes.utils.raster import lare_raster, aggregate_hazard
-
-
-# from processes.utils import read_appyml, tempfile
-# from processes.utils.wfs import clipfromwfs_cql
-# from processes.utils.wfs import wfs_filter
-# from processes.utils.raster import cut_wcs
-
-logging.basicConfig(level=logging.INFO)
 
 
 def test():
@@ -83,7 +68,7 @@ def test():
     output_gpkg = 'path/to/output_hexagons.gpkg'
     hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
 
-    print("Updated hexagon GeoPackage file saved to:", output_gpkg)
+    logging.info("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
 
 def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
     if outkcs is None:
@@ -142,86 +127,52 @@ def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
 
 
 def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
-        
-    msg = None
+    cfg = get_config()
+    geoserver_url = cfg.ows_base
+    wmsurl = cfg.geoserver.url
 
-    appconfig = read_appyml('app.yml')
-    geoserver_url = appconfig['ows']['base']
-    wmsurl = appconfig['sdi']['geoserver']['url']
-
-    try:
-        sessiondir = load_session(sessionid)
-    except FileNotFoundError as exc:
-        logging.error('!-- uomkcs: %s', exc)
-        return json.dumps({'error': str(exc)})
+    sessiondir = load_session(sessionid)
 
     uomgpkg = str(sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg')
     if not os.path.isfile(uomgpkg):
-        logging.error('uomkcs: hexagon file not found: %s', uomgpkg)
+        raise FileNotFoundError(f'Hexagon file not found: {uomgpkg}')
 
-    # hazard key validated against cfg.hazard_layers by UomKcsInputs before reaching here
-    hazardlayer = appconfig['hazard_layers'][hazard]
-    logging.info(f'!--- LARE UOM KCS: Hazard {hazard} found in app configuration with layers {hazardlayer}')
-    
-    # based on the hazard layer name, clip the hazard layer from the geoserver to the region of interest, this is needed for the next step where the kcs data is clipped to the same region and then aggregated to the hexagons.
+    # hazard key already validated against cfg.hazard_layers by UomKcsInputs
+    hazardlayer = cfg.hazard_layers[hazard]
+    logging.info('uomkcs: hazard %r -> layer %s', hazard, hazardlayer)
+
     uom = gpd.read_file(uomgpkg)
     hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
     if not hazardtif or not os.path.isfile(hazardtif):
-        logging.error('uomkcs: hazard raster not found for layer %s', hazardlayer)
+        raise RuntimeError(f'Hazard raster not produced for layer {hazardlayer!r}')
 
-    # first find out what datatype KCS is, for rasters we need a different approach 
-    # than for vector data, because of the aggregation step to the hexagons. 
-    # For raster data we can directly cut the raster to the region of interest, 
-    # for vector data we need to do a spatial join and aggregate the intersecting geometries to the hexagons.
-
-    dctkcs = appconfig['layers']['kcs']
+    dctkcs = cfg.kcs
     datatype = None
-    for k in dctkcs.keys():
-        if k.find(kcs) != -1:
+    kcslayer = None
+    for k in dctkcs:
+        if kcs in k:
             kcslayer = k
             datatype = dctkcs[k]
+            break
     if datatype is None:
-        return json.dumps({'error': f'Datatype for KCS {kcs!r} not found in config'})
+        raise ValueError(f'KCS {kcs!r} not found in config layers.kcs')
 
-    # clip the kcs, now it gets interesting, because it can be vector or raster data service
-    try:
-        if datatype == 'raster':
-            outkcs = lare_raster(uom, uom.crs, kcs)
-            logging.info(f'!-- KCS {kcs} clipped as raster: {outkcs}')
-        elif datatype == 'vector':
-            # Use dissolved boundary of all hexagons as the spatial filter,
-            # because filtervectorbyvector only uses the first geometry.
-            filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
-            outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
-
-            # Check if result is valid (not None and not empty for GeoDataFrames)
-            if outkcs is not None and not outkcs.empty:
-                logging.info(f'!-- KCS {kcs} clipped to region of interest, result has {len(outkcs)} features')
-                agguomkcs = aggregate_kcs_uom(outkcs, uomgpkg, sessionid=sessionid)
-                logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
-            else:
-                logging.warning(f'No features returned for {kcs}')
+    if datatype == 'raster':
+        outkcs = lare_raster(uom, uom.crs, kcs)
+        logging.info('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
+    elif datatype == 'vector':
+        filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
+        outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
+        if outkcs is not None and not outkcs.empty:
+            logging.info('uomkcs: KCS %r clipped, %d features', kcs, len(outkcs))
+            aggregate_kcs_uom(outkcs, uomgpkg, sessionid=sessionid)
         else:
-            msg = f'!--- LARE UOM KCS: Unsupported datatype {datatype} for {kcs}'
-            logging.error(msg)
-            return json.dumps({'error': msg})
-    except Exception as e:
-        logging.error(f'Failed to create subset of {kcs} with erro {str(e)}')
-        return json.dumps({'error': f'Failed to create subset of {kcs}: {str(e)}'})
-
+            logging.warning('uomkcs: no features returned for KCS %r', kcs)
+    else:
+        raise ValueError(f'Unsupported KCS datatype {datatype!r} for {kcs!r}')
 
     aggregate_hazard(sessionid, hazardtif, archetype)
-    # from this point on the process needs to assign the hazard data to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
-    # call lare_coastal with the hazard layer and the kcs layer, this will create a new layer with the hazard data assigned to the hexagons, this is done by loading the aggregated kcs data into geoserver and then creating a viewer output with the new layer. The viewer output is then returned to the WPS process, which can be used in the next step of the LARE process
 
-    
-    # load the data into geoserver and return to WPS.
     layer_name = f'hexagons_{archetype}_{sessionid}_{kcs}'
-    try:
-        republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name='hazard',layer_name=layer_name)
-        # createvieweroutput expects a list of WMS layer names (with workspace prefix)
-        wms_layer = f"{layer_name}"
-        res = createvieweroutput([wms_layer], 'Aggregated KCS', {'uom':'Aggregated KCS'}, wmsurl)
-        return res
-    except Exception as e:
-        return json.dumps({'error': str(e)})
+    republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name='hazard', layer_name=layer_name)
+    return createvieweroutput([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wmsurl)

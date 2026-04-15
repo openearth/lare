@@ -51,7 +51,10 @@ class LareHazardProcessor(BaseProcessor):
         except ValidationError as exc:
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
-        result = mainhandler_hazard(inputs.name, inputs.hazard)
+        try:
+            result = mainhandler_hazard(inputs.name, inputs.hazard)
+        except Exception as exc:
+            raise ProcessorExecuteError(str(exc)) from exc
         return 'application/json', result
 
     def __repr__(self):
