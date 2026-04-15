@@ -3,6 +3,7 @@
 
 import logging
 from pathlib import Path
+from time import perf_counter
 
 import geopandas as gpd
 import numpy as np
@@ -85,25 +86,60 @@ def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str)
 
 
 def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> dict:
+    t0 = perf_counter()
     cfg = get_config()
+    t1 = perf_counter()
     sessiondir = load_session(sessionid)
+    t2 = perf_counter()
     name_field = _require_name_field(cfg, layername)
+    t3 = perf_counter()
     gdf = _load_region_from_wfs(cfg, layername, id, name_field)
+    t4 = perf_counter()
     logger.info('Spatial reference: %s', gdf.crs)
 
     if not is_metric_crs(gdf.crs):
+        t_reproj_start = perf_counter()
         gdf = ensure_metric(gdf, 3035)
         logger.info('Reprojected to EPSG:3035')
+        logger.info('perf:lare_uom reproject_seconds=%.3f', perf_counter() - t_reproj_start)
+    t_region_write_start = perf_counter()
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
+    t_region_write_end = perf_counter()
     logger.debug('Region area: %.1f', gdf.area.sum())
 
     hexgrid_path = sessiondir / f'hexagons_{sessionid}.gpkg'
+    t_hex_start = perf_counter()
     hexgdf = hexgrid_within(gdf, uomsize)
+    t_hex_end = perf_counter()
+    t_hex_write_start = perf_counter()
     hexgdf.to_file(hexgrid_path, driver='GPKG')
+    t_hex_write_end = perf_counter()
     logger.info('Hexgrid written: %s (%d hexagons)', hexgrid_path, len(hexgdf))
 
-    return publish_and_respond(
+    t_publish_start = perf_counter()
+    result = publish_and_respond(
         hexgrid_path,
         'Unit of Measurement',
         {'uom': 'Unit of Measurement'},
     )
+    t_publish_end = perf_counter()
+    logger.info(
+        (
+            'perf:lare_uom total_seconds=%.3f config_seconds=%.3f '
+            'load_session_seconds=%.3f resolve_name_field_seconds=%.3f '
+            'wfs_fetch_seconds=%.3f region_gpkg_write_seconds=%.3f '
+            'hexgrid_build_seconds=%.3f hexgrid_gpkg_write_seconds=%.3f '
+            'publish_seconds=%.3f hex_count=%d'
+        ),
+        t_publish_end - t0,
+        t1 - t0,
+        t2 - t1,
+        t3 - t2,
+        t4 - t3,
+        t_region_write_end - t_region_write_start,
+        t_hex_end - t_hex_start,
+        t_hex_write_end - t_hex_write_start,
+        t_publish_end - t_publish_start,
+        len(hexgdf),
+    )
+    return result

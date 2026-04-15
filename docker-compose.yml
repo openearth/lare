@@ -7,6 +7,9 @@ services:
     # code/tmp mounts, remove command / PYTHONPATH, tune WSGI_WORKERS if needed.
     environment:
       PYTHONPATH: /pygeoapi
+      # Host-visible path used when registering GeoPackage datastores in
+      # external (non-container) GeoServer instances.
+      LARE_TMPDIR_HOST: C:/develop/lare/tmp
     command: ["run-with-hot-reload"]
     volumes:
       - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:ro
