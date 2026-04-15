@@ -43,7 +43,7 @@ def classifyraster(hazard, clc_array, src_nodata, outclc, meta):
         #load_reclass_table 
         class_dct = load_reclass_table(clc_lut,'clc','score')
         if class_dct is None:
-            logging.error(f'!-- classification directionary not found {clc_lut}')
+            logger.error('!-- classification directionary not found %s', clc_lut)
             return None
 
         # find out what the type is of the value in the csv
@@ -96,7 +96,11 @@ def handler_coastline(sessionid):
     sessiondir = os.path.join(tmpdir, str(sessionid))
     gdfpath = os.path.join(sessiondir, 'region.gpkg')
     if not os.path.exists(gdfpath):
-        logging.error(f'!-- Coastline handler: unable to find geodataframe for sessionid {sessionid} at path {gdfpath}')
+        logger.error(
+            '!-- Coastline handler: unable to find geodataframe for sessionid %s at path %s',
+            sessionid,
+            gdfpath,
+        )
         return None
 
     # buffer the gdf with a distance of 100 m
@@ -210,7 +214,7 @@ def mainhandler(name):
     try:
         gdf = clipfromwfs_cql(name)
     except Exception as e:
-        logging.error('mainhandler: WFS clip failed for %s: %s', name, e)
+        logger.error('mainhandler: WFS clip failed for %s: %s', name, e)
         return None
 
     handler_clc(gdf)

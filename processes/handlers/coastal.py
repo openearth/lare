@@ -20,6 +20,26 @@ from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
 from processes.utils.geoserver import publish_and_respond, filtervectorbyvector
 
+
+def _require_raster(path: str | None, label: str, sessionid: str) -> str:
+    """Return raster path or raise if clipping failed."""
+    if path is None:
+        raise RuntimeError(f'Failed to clip {label} layer for session {sessionid}')
+    return path
+
+
+def _load_or_read_hexagons(
+    sessiondir: Path, sessionid: str, hexagons: gpd.GeoDataFrame | None
+) -> gpd.GeoDataFrame:
+    """Return provided hexagons or load them from the session GeoPackage."""
+    if hexagons is not None:
+        return hexagons
+    hex_path = sessiondir / f'hexagons_{sessionid}.gpkg'
+    if not hex_path.exists():
+        raise FileNotFoundError(f'Hexagon grid not found: {hex_path}')
+    return gpd.read_file(hex_path)
+
+
 def mainhandler_coastal(sessionid, hexagons: gpd.GeoDataFrame = None):
     """
     Main entry point for the coastal archetype workflow.
@@ -105,24 +125,16 @@ def mainhandler_coastal(sessionid, hexagons: gpd.GeoDataFrame = None):
     ) as dst:
         dst.write(raster_array, 1)
 
-    outclc = lare_raster(gdfcoastal_buffered, 3035, 'clc', sessionid)
-    if outclc is None:
-        raise RuntimeError(f'Failed to clip CLC layer for session {sessionid}')
-
-    outdem = lare_raster(gdfcoastal_buffered, 4258, 'dem', sessionid)
-    if outdem is None:
-        raise RuntimeError(f'Failed to clip DEM layer for session {sessionid}')
-
-    outimp = lare_raster(gdfcoastal_buffered, 3035, 'imperviousness', sessionid)
-    if outimp is None:
-        raise RuntimeError(f'Failed to clip imperviousness layer for session {sessionid}')
+    _require_raster(lare_raster(gdfcoastal_buffered, 3035, 'clc', sessionid), 'CLC', sessionid)
+    _require_raster(lare_raster(gdfcoastal_buffered, 4258, 'dem', sessionid), 'DEM', sessionid)
+    _require_raster(
+        lare_raster(gdfcoastal_buffered, 3035, 'imperviousness', sessionid),
+        'imperviousness',
+        sessionid,
+    )
 
     # Intersect hexagon grid with 1 km coastal buffer
-    hex_path = sessiondir / f'hexagons_{sessionid}.gpkg'
-    if hexagons is None:
-        if not hex_path.exists():
-            raise FileNotFoundError(f'Hexagon grid not found: {hex_path}')
-        hexagons = gpd.read_file(hex_path)
+    hexagons = _load_or_read_hexagons(sessiondir, sessionid, hexagons)
 
     # gdfcoastal_buffered is already in memory — no disk re-read needed
     coastal = gdfcoastal_buffered

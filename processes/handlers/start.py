@@ -15,7 +15,6 @@ def mainhandler() -> dict:
 
     sessionid = str(time.time()).replace('.', '')
     sessiondir = Path(cfg.tmpdir) / sessionid
-    logger.info('Session directory: %s', sessiondir)
     sessiondir.mkdir(parents=True, exist_ok=True)
     logger.info('Session directory created: %s', sessiondir)
 

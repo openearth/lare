@@ -18,6 +18,32 @@ from processes.utils.vector import ensure_metric
 from processes.utils.geoserver import filtervectorbyvector, createvieweroutput, republish_layer
 from processes.utils.raster import lare_raster, aggregate_hazard
 
+logger = logging.getLogger(__name__)
+
+
+def _require_uomgpkg(sessiondir, sessionid: str, archetype: str) -> str:
+    """Build and validate the expected UoM GeoPackage path."""
+    uomgpkg = str(sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg')
+    if not os.path.isfile(uomgpkg):
+        raise FileNotFoundError(f'Hexagon file not found: {uomgpkg}')
+    return uomgpkg
+
+
+def _resolve_kcs_layer(cfg, kcs: str) -> tuple[str, str]:
+    """Resolve KCS key to (layer_name, datatype) from config."""
+    for layer_name, datatype in cfg.kcs.items():
+        if kcs in layer_name:
+            return layer_name, datatype
+    raise ValueError(f'KCS {kcs!r} not found in config layers.kcs')
+
+
+def _require_hazard_raster(uom: gpd.GeoDataFrame, hazardlayer: str, sessionid: str) -> str:
+    """Clip and validate hazard raster output path."""
+    hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
+    if not hazardtif or not os.path.isfile(hazardtif):
+        raise RuntimeError(f'Hazard raster not produced for layer {hazardlayer!r}')
+    return hazardtif
+
 
 def test():
     # Load the GeoPackage files
@@ -44,7 +70,7 @@ def test():
     output_gpkg = 'path/to/output_hexagons.gpkg'
     hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
 
-    logging.info("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
+    logger.debug("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
 
 def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
     if outkcs is None:
@@ -54,7 +80,7 @@ def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
         raise RuntimeError(f"KCS input must be a GeoDataFrame, got {type(outkcs)}")
 
     if outkcs.empty:
-        logging.warning("!-- aggregate_kcs_uom: outkcs is empty, writing zero lengths to UoM")
+        logger.warning("!-- aggregate_kcs_uom: outkcs is empty, writing zero lengths to UoM")
 
     layer_names = fiona.listlayers(uomgpkg)
     if not layer_names:
@@ -68,7 +94,7 @@ def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
 
     # Ensure a stable key exists for merging.
     if 'id' not in uom.columns:
-        logging.warning("!-- aggregate_kcs_uom: 'id' column not found in UoM, creating from index")
+        logger.warning("!-- aggregate_kcs_uom: 'id' column not found in UoM, creating from index")
         uom = uom.reset_index(drop=False).rename(columns={'index': 'id'})
 
     # Reproject KCS data to UoM CRS when needed.
@@ -108,42 +134,27 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     wmsurl = cfg.geoserver.url
 
     sessiondir = load_session(sessionid)
-
-    uomgpkg = str(sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg')
-    if not os.path.isfile(uomgpkg):
-        raise FileNotFoundError(f'Hexagon file not found: {uomgpkg}')
+    uomgpkg = _require_uomgpkg(sessiondir, sessionid, archetype)
 
     # hazard key already validated against cfg.hazard_layers by UomKcsInputs
     hazardlayer = cfg.hazard_layers[hazard]
-    logging.info('uomkcs: hazard %r -> layer %s', hazard, hazardlayer)
+    logger.info('uomkcs: hazard %r -> layer %s', hazard, hazardlayer)
 
     uom = gpd.read_file(uomgpkg)
-    hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
-    if not hazardtif or not os.path.isfile(hazardtif):
-        raise RuntimeError(f'Hazard raster not produced for layer {hazardlayer!r}')
-
-    dctkcs = cfg.kcs
-    datatype = None
-    kcslayer = None
-    for k in dctkcs:
-        if kcs in k:
-            kcslayer = k
-            datatype = dctkcs[k]
-            break
-    if datatype is None:
-        raise ValueError(f'KCS {kcs!r} not found in config layers.kcs')
+    hazardtif = _require_hazard_raster(uom, hazardlayer, sessionid)
+    kcslayer, datatype = _resolve_kcs_layer(cfg, kcs)
 
     if datatype == 'raster':
         outkcs = lare_raster(uom, uom.crs, kcs)
-        logging.info('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
+        logger.debug('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
     elif datatype == 'vector':
         filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
         outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
         if outkcs is not None and not outkcs.empty:
-            logging.info('uomkcs: KCS %r clipped, %d features', kcs, len(outkcs))
+            logger.info('uomkcs: KCS %r clipped, %d features', kcs, len(outkcs))
             aggregate_kcs_uom(outkcs, uomgpkg, sessionid=sessionid)
         else:
-            logging.warning('uomkcs: no features returned for KCS %r', kcs)
+            logger.warning('uomkcs: no features returned for KCS %r', kcs)
     else:
         raise ValueError(f'Unsupported KCS datatype {datatype!r} for {kcs!r}')
 

@@ -10,6 +10,7 @@ from shapely import STRtree
 from shapely.geometry import Polygon
 
 from processes.config import get_config
+from processes.handlers.session import load_session
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric, is_metric_crs
 from processes.utils.geoserver import publish_and_respond
@@ -67,27 +68,34 @@ def hexgrid_within(gdf: gpd.GeoDataFrame, area: float) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(geometry=hexes, crs=gdf.crs)
 
 
-def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> dict:
-    cfg = get_config()
-    sessiondir = Path(cfg.tmpdir) / sessionid
-
-    if not sessiondir.exists():
-        raise FileNotFoundError(f'Session directory {sessiondir} not found')
-
+def _require_name_field(cfg, layername: str) -> str:
+    """Return configured name_field for a layer or raise."""
     name_field = cfg.datasets.get(layername)
     if not name_field:
         raise ValueError(f'Layername {layername} not found in config')
+    return name_field
 
-    gdf = clipfromwfs_cql(id, url=cfg.ows_base, name_field=name_field, typename=layername)
+
+def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str) -> gpd.GeoDataFrame:
+    """Fetch region geometry from WFS and ensure at least one feature exists."""
+    gdf = clipfromwfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layername)
     if gdf is None or gdf.empty:
-        raise ValueError(f'No features found for {layername} with id={id}')
+        raise ValueError(f'No features found for {layername} with id={feature_id}')
+    return gdf
+
+
+def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> dict:
+    cfg = get_config()
+    sessiondir = load_session(sessionid)
+    name_field = _require_name_field(cfg, layername)
+    gdf = _load_region_from_wfs(cfg, layername, id, name_field)
     logger.info('Spatial reference: %s', gdf.crs)
 
     if not is_metric_crs(gdf.crs):
         gdf = ensure_metric(gdf, 3035)
         logger.info('Reprojected to EPSG:3035')
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
-    logger.info('Region area: %.1f', gdf.area.sum())
+    logger.debug('Region area: %.1f', gdf.area.sum())
 
     hexgrid_path = sessiondir / f'hexagons_{sessionid}.gpkg'
     hexgdf = hexgrid_within(gdf, uomsize)
