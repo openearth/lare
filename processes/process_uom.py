@@ -1,8 +1,10 @@
 import logging
 
+from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 from processes.handlers.uom import mainhandler_uom
+from processes.models import UomInputs
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,16 +66,17 @@ class LareUomProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        for key in ('sessionid', 'uomsize', 'layername', 'id'):
-            if key not in data:
-                raise ProcessorExecuteError(f'Missing required input: {key}')
+        try:
+            inputs = UomInputs.model_validate(data)
+        except ValidationError as exc:
+            raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
             result = mainhandler_uom(
-                data['sessionid'],
-                int(data['uomsize']),
-                data['layername'],
-                data['id'],
+                inputs.sessionid,
+                inputs.uomsize,
+                inputs.layername,
+                inputs.id,
             )
         except (FileNotFoundError, ValueError) as exc:
             raise ProcessorExecuteError(str(exc)) from exc

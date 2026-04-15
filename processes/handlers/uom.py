@@ -35,8 +35,8 @@ from shapely.geometry import Polygon
 
 from processes.config import get_config
 from processes.utils.wfs import clipfromwfs_cql
-from processes.utils.vector import transformgdf, is_metric_crs
-from processes.utils.geoserver import publish_gpkg, createvieweroutput, GS
+from processes.utils.vector import ensure_metric, is_metric_crs
+from processes.utils.geoserver import publish_and_respond
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> di
     logger.info('Spatial reference: %s', gdf.crs)
 
     if not is_metric_crs(gdf.crs):
-        gdf = transformgdf(gdf, 3035)
+        gdf = ensure_metric(gdf, 3035)
         logger.info('Reprojected to EPSG:3035')
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
     logger.info('Region area: %.1f', gdf.area.sum())
@@ -118,17 +118,8 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> di
     hexgdf.to_file(hexgrid_path, driver='GPKG')
     logger.info('Hexgrid written: %s (%d hexagons)', hexgrid_path, len(hexgdf))
 
-    store_name = f'hexagons_{sessionid}'
-    gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
-    try:
-        gs.delete_layer_and_store('tmp', store_name)
-    except Exception:
-        logger.debug('Old datastore %s not found (ok on first run)', store_name)
-
-    wmslay = publish_gpkg(str(hexgrid_path))
-    return createvieweroutput(
-        wmslay,
+    return publish_and_respond(
+        hexgrid_path,
         'Unit of Measurement',
         {'uom': 'Unit of Measurement'},
-        cfg.geoserver.url,
     )

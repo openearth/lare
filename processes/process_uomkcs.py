@@ -1,8 +1,10 @@
 import logging
 
+from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 from processes.handlers.uomkcs import mainhandler_uomkcs
+from processes.models import UomKcsInputs
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,15 +58,16 @@ class LareUomKcsProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        for key in ('sessionid', 'kcs', 'hazard', 'archetype'):
-            if key not in data:
-                raise ProcessorExecuteError(f'Missing required input: {key}')
+        try:
+            inputs = UomKcsInputs.model_validate(data)
+        except ValidationError as exc:
+            raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         result = mainhandler_uomkcs(
-            data['sessionid'],
-            data['kcs'],
-            data['hazard'],
-            data['archetype'],
+            inputs.sessionid,
+            inputs.kcs,
+            inputs.hazard,
+            inputs.archetype,
         )
         return 'application/json', result
 

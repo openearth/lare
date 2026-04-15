@@ -41,7 +41,7 @@ import logging
 from processes.config import get_config
 from processes.utils import tempfile, load_reclass_topo, load_reclass_table, compute_nodata_cast
 from processes.utils.wfs import clipfromwfs_cql
-from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.vector import ensure_metric
 from processes.utils.raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
 from processes.utils.geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
@@ -59,11 +59,8 @@ stepwise approach:
 """
 
 def handler_eunis(gdf,hazard=None):
-    msg = None
-
     # clip EUNIS raster from OGC service
     outeunis = lare_raster(gdf, 3035, 'eunis')
-    print(type(outeunis))
 
 def classifyraster(hazard, clc_array, src_nodata, outclc, meta):
         cfg = get_config()
@@ -80,9 +77,7 @@ def classifyraster(hazard, clc_array, src_nodata, outclc, meta):
         value = class_dct[first_key]
         dt = np.array(value).dtype #target dtype for this hazard (numpy dtype)
 
-        # compute nodata_cast AFTER dt is known
         nodata_cast = compute_nodata_cast(src_nodata, dt)
-        logging.info(f'!-- classify with nodata {nodata_cast}, {src_nodata}, {dt}')
 
         # classify the arry witht he dictionary and the opened clc array
         clc_archetype_arr = reclassify_fast(clc_array,class_dct,dtype=str(dt))
@@ -133,16 +128,7 @@ def handler_coastline(sessionid):
     # buffer the gdf with a distance of 100 m
     gdf = geopandas.read_file(gdfpath)
     # check crs, this should be a metric system (default to 3035)
-    try:
-        if not is_metric_crs(gdf.crs):
-            gdf = transformgdf(gdf, 3035)
-            msg = f"!-- Coastline handler: defaulting to 3035 successful"
-        else:
-            msg = f"!-- Coastline handler: no transformation necessary"
-        logging.info(f'!-- {msg}')
-    except Exception as e:
-        msg = f"!-- Coastline handler: transformation to 3035 failed"
-        logging.error(f'!-- {msg}')
+    gdf = ensure_metric(gdf, 3035)
 
     bufgdf = gdf.copy()
     bufgdf["geometry"] = gdf.buffer(100)
@@ -181,16 +167,13 @@ def handler_clc(gdf,hazard=None):
     hazards = cfg.hazard_clc_scores
     # add the hazards to a list
     lsthazards = []
-    if hazard == None:
-        # loop over all the hazards in hazards
+    if hazard is None:
         for hazard in hazards.keys():
             clc_hazard = classifyraster(hazard, clc_array, src_nodata, outclc, meta)
             lsthazards.append(clc_hazard)
-            logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
     else:
         clc_hazard = classifyraster(hazard, clc_array, src_nodata, outclc, meta)
         lsthazards.append(clc_hazard)
-        logging.info(f'! -- Succesfully written layer {clc_hazard} for hazard {hazard}')
     
     wmslay = load2geoserver(lsthazards)
     return wmslay
@@ -248,33 +231,16 @@ def mainhandler(name):
     Returns:
         derived maps: For now nothing is done with these maps
     """
-    msg = None
-    # step 1 retrieve GeoDataFrame from WFS
     name = name.split(':')[1].replace('}','')
-    logging.info("----!!! Derive GeodataFram using: {}".format(name))
-    
+
     try:
         gdf = clipfromwfs_cql(name)
-        msg = f'area of gdf for {name} is {str(gdf.area.sum())}'        
     except Exception as e:
-        msg = f'nothing found for {name}, {e}'
+        logging.error('mainhandler: WFS clip failed for %s: %s', name, e)
         return None
-    print(msg)
 
-    # call the handler to clip dem, retrieve derived hazards map from the clipped dem
-    msg = None
-    #msg = handler_dem(gdf)
-    #logging.info(f'!-- dem clipped and saved for {name}. Possible message {msg}')
-
-    # call the handler to clip CLC and retrieve derived hazards map from the clipped clc
-    msg = None
-    msg = handler_clc(gdf)
-    logging.info(f'!-- CLC clipped and saved for {name}. Possible message {msg}')
-
-    # call the handler to clip EUNIS
-    msg = None
-    msg = handler_eunis(gdf)
-    logging.info(f'!-- EUNIS clipped and saved for {name}. Possible message {msg}')
+    handler_clc(gdf)
+    handler_eunis(gdf)
 
     # TODO: provide front end with correct, not sure yet what is needed.
 
@@ -292,23 +258,14 @@ def mainhandler_hazard(name, hazard):
     cfg = get_config()
     jsonhazard = cfg.hazard_titles
     wmsurl = cfg.geoserver.url
-    try:
-        if hazard not in jsonhazard.keys():
-            logging.error(f"----!!! Hazard: {hazard} not in list of defined hazards, return None")
-            return json.dumps('Unable to find specified hazard')
-    except Exception as e:
-        logging.error(f"----!!! Hazard: something else goes wrong {str(e)}")
-        return json.dumps('Unspecified error while matching provided hazard {hazard}')
 
-    # step 1 retrieve GeoDataFrame from WFS
-    logging.info("----!!! Derived GeodataFram for region: {}".format(name))
-    
+    if hazard not in jsonhazard:
+        return json.dumps(f'Hazard {hazard!r} not in defined hazards')
+
     try:
         gdf = clipfromwfs_cql(name)
     except Exception as e:
-        msg = f'Clipping geodatafram using regionname {name} failed with following error {str(e)}'
-        return json.dumps(msg)
-    print(msg)
+        return json.dumps(f'WFS clip for region {name!r} failed: {e}')
     
     # call the handler to do the magic
     try:

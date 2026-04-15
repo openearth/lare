@@ -1,8 +1,10 @@
 import logging
 
+from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 from processes.handlers.coastal import mainhandler_coastal
+from processes.models import CoastalInputs
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,11 +40,12 @@ class LareCoastalProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        sessionid = data.get('sessionid')
-        if not sessionid:
-            raise ProcessorExecuteError('Missing required input: sessionid')
+        try:
+            inputs = CoastalInputs.model_validate(data)
+        except ValidationError as exc:
+            raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
-        result = mainhandler_coastal(sessionid)
+        result = mainhandler_coastal(inputs.sessionid)
         return 'application/json', result
 
     def __repr__(self):

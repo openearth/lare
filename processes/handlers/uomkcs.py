@@ -41,9 +41,11 @@ import numpy as np
 import fiona
 
 # local
+from processes.config import get_config
+from processes.handlers.session import load_session
 from processes.utils import read_appyml, tempfile
 from processes.utils.wfs import clipfromwfs_cql
-from processes.utils.vector import transformgdf, is_metric_crs
+from processes.utils.vector import ensure_metric
 from processes.utils.geoserver import publish_gpkg, filtervectorbyvector, createvieweroutput, republish_layer
 from processes.utils.raster import lare_raster, aggregate_hazard
 
@@ -83,7 +85,7 @@ def test():
 
     print("Updated hexagon GeoPackage file saved to:", output_gpkg)
 
-def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
+def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
     if outkcs is None:
         raise RuntimeError("KCS input is None, cannot aggregate to UoM")
 
@@ -99,7 +101,6 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
     uom_layer = layer_names[0]
 
     uom = gpd.read_file(uomgpkg, layer=uom_layer, engine='pyogrio')
-    logging.info(f"!-- aggregate_kcs_uom: CRS outkcs={outkcs.crs}, uom={uom.crs}")
 
     if uom.empty:
         raise RuntimeError("UoM dataset is empty")
@@ -114,44 +115,28 @@ def aggregate_kcs_uom(outkcs,uomgpkg,tmpdir,sessionid=None):
         outkcs = outkcs.to_crs(uom.crs)
 
     # Work in projected coordinates for meaningful length calculations.
-    uom_calc = uom
-    if not is_metric_crs(uom.crs):
-        logging.info("!-- aggregate_kcs_uom: UoM CRS is not metric, using EPSG:3035 for length calculation")
-        uom_calc = uom.to_crs(3035)
-
-    outkcs_calc = outkcs
-    if not is_metric_crs(outkcs.crs):
-        logging.info("!-- aggregate_kcs_uom: KCS CRS is not metric, using EPSG:3035 for length calculation")
-        outkcs_calc = outkcs.to_crs(3035)
+    uom_calc = ensure_metric(uom, 3035)
+    outkcs_calc = ensure_metric(outkcs, 3035)
 
     # Spatial join: keep UoM as left frame so we can aggregate by hexagon id.
     sjoin_result = gpd.sjoin(uom_calc[['id', 'geometry']], outkcs_calc[['geometry']], how='inner', predicate='intersects')
-    logging.info(f"!-- aggregate_kcs_uom: sjoin result has {len(sjoin_result)} intersecting features")
 
     if sjoin_result.empty:
-        logging.info("!-- aggregate_kcs_uom: No intersections found, assigning zero lengths")
         aggregated = uom[['id']].copy()
         aggregated['length'] = 0.0
     else:
-        # Compute lengths from the matched KCS geometries referenced by index_right.
         kcs_lengths = outkcs_calc.geometry.length
         sjoin_result['length'] = sjoin_result['index_right'].map(kcs_lengths)
         sjoin_result['length'] = sjoin_result['length'].fillna(0)
         aggregated = sjoin_result.groupby('id', as_index=False)['length'].sum()
-        logging.info(f"!-- aggregate_kcs_uom: Summed lengths for {len(aggregated)} hexagons")
 
-    # Merge aggregated statistic back into existing hexagon features.
     if 'length' in uom.columns:
         uom = uom.drop(columns=['length'])
 
     uom = uom.merge(aggregated, on='id', how='left')
     uom['length'] = uom['length'].fillna(0)
-    logging.info("!-- aggregate_kcs_uom: Merged aggregated length into UoM and filled nulls with 0")
-    
-    # Save back to the same existing layer (overwrite layer contents, keep same layer entry)
-    uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
 
-    print("Aggregation complete. Result written to UoM GeoPackage.")
+    uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
     return uomgpkg
 
 
@@ -160,57 +145,29 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
         
     msg = None
 
-    # check if hazard provided is listed in the list of hazards
     appconfig = read_appyml('app.yml')
-    geoserver_url = appconfig['ows']['base']    
-    tmpdir = appconfig['sdi']['tmp']['tmpdir']
+    geoserver_url = appconfig['ows']['base']
     wmsurl = appconfig['sdi']['geoserver']['url']
 
-    # section that check hexagons        
-    # find the layer defined for hazard as well as uomlayer
-    # take into account the crs
-    tmpdir = os.path.join(tmpdir, sessionid)
-    if not os.path.exists(tmpdir):
-        error_msg = f'!-- uomkcs: Session directory {tmpdir} not found'
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
     try:
-        uomgpkg = os.path.join(tmpdir,f'hexagons_{archetype}_{sessionid}.gpkg')
-        if not os.path.isfile(uomgpkg):
-            logging.error(f'!-- uomkcs: Layer with Unit of Measurements {uomgpkg} not found')
-        else:
-            logging.info(f'{uomgpkg} found and used in further process') 
-    except Exception as e:
-        logging.error(f'Failed to find {uomgpkg} geopackage')
+        sessiondir = load_session(sessionid)
+    except FileNotFoundError as exc:
+        logging.error('!-- uomkcs: %s', exc)
+        return json.dumps({'error': str(exc)})
 
-    hazard_layers = appconfig.get('hazard_layers')
-    if not isinstance(hazard_layers, dict):
-        # Backward compatibility: allow direct map in hazards when no nested hazard config exists.
-        fallback_hazards = appconfig.get('hazards', {})
-        if isinstance(fallback_hazards, dict) and 'hazard' not in fallback_hazards:
-            hazard_layers = fallback_hazards
-        else:
-            hazard_layers = {}
+    uomgpkg = str(sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg')
+    if not os.path.isfile(uomgpkg):
+        logging.error('uomkcs: hexagon file not found: %s', uomgpkg)
 
-    hazardlayer = hazard_layers.get(hazard)
-    if hazardlayer is None:
-        msg = f'!--- LARE UOM KCS: Hazard {hazard} not found in app configuration'
-        logging.error(msg)
-        logging.info(f"!--- LARE UOM KCS: Available hazard layer keys: {list(hazard_layers.keys())}")
-        return json.dumps({'error': msg})
-    else:
-        logging.info(f'!--- LARE UOM KCS: Hazard {hazard} found in app configuration with layers {hazardlayer}')
+    # hazard key validated against cfg.hazard_layers by UomKcsInputs before reaching here
+    hazardlayer = appconfig['hazard_layers'][hazard]
+    logging.info(f'!--- LARE UOM KCS: Hazard {hazard} found in app configuration with layers {hazardlayer}')
     
     # based on the hazard layer name, clip the hazard layer from the geoserver to the region of interest, this is needed for the next step where the kcs data is clipped to the same region and then aggregated to the hexagons.
     uom = gpd.read_file(uomgpkg)
-    try:
-        hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
-        if not os.path.isfile(hazardtif):
-            logging.error(f'Layer with hazarddescripiton {hazardtif} not found')
-        else:
-            logging.info(f'{hazardtif} found and used in further process') 
-    except Exception as e:
-        logging.error(f'Failed to find {hazardtif} tif')
+    hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
+    if not hazardtif or not os.path.isfile(hazardtif):
+        logging.error('uomkcs: hazard raster not found for layer %s', hazardlayer)
 
     # first find out what datatype KCS is, for rasters we need a different approach 
     # than for vector data, because of the aggregation step to the hexagons. 
@@ -223,13 +180,8 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
         if k.find(kcs) != -1:
             kcslayer = k
             datatype = dctkcs[k]
-            print('kcslayer',k)
-            msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} is {datatype}'
-            logging.info(msg)
-    if datatype == None:
-        msg = f'!--- LARE UOM KCS: Datatype for Key community system {kcs} not found'
-        return json.dumps({'error': msg})
-    logging.info(f'! datatype for {kcs} is {datatype}')
+    if datatype is None:
+        return json.dumps({'error': f'Datatype for KCS {kcs!r} not found in config'})
 
     # clip the kcs, now it gets interesting, because it can be vector or raster data service
     try:
@@ -245,7 +197,7 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
             # Check if result is valid (not None and not empty for GeoDataFrames)
             if outkcs is not None and not outkcs.empty:
                 logging.info(f'!-- KCS {kcs} clipped to region of interest, result has {len(outkcs)} features')
-                agguomkcs = aggregate_kcs_uom(outkcs, uomgpkg, tmpdir, sessionid=sessionid)
+                agguomkcs = aggregate_kcs_uom(outkcs, uomgpkg, sessionid=sessionid)
                 logging.info(f'!-- KCS {kcs} aggregated to hexagons {agguomkcs}')
             else:
                 logging.warning(f'No features returned for {kcs}')

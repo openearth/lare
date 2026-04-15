@@ -182,6 +182,25 @@ class AppConfig(BaseModel):
     def tmp_base(self) -> str:
         return self.paths.tmp_base
 
+    def resolve_layer(self, alias: str) -> tuple[str, str]:
+        """Return (wcs_layer_name, local_filename) for a known alias.
+
+        For aliases registered in ``layers`` config the WCS layer name comes
+        from the YAML.  Any other string is treated as a custom GeoServer layer
+        (``workspace:layername``), where the local filename is derived from the
+        part after the colon.
+        """
+        registry: dict[str, tuple[str, str]] = {
+            'dem': (self.layer_dem, 'dem.tif'),
+            'clc': (self.layer_clc, 'clc.tif'),
+            'eunis': (self.layer_eunis, 'eunis.tif'),
+            'imperviousness': (self.layer_imperviousness, 'imperviousness.tif'),
+        }
+        if alias in registry:
+            return registry[alias]
+        lname = alias.split(':')[-1]
+        return alias, f'{lname}.tif'
+
 
 # ---------------------------------------------------------------------------
 # Loader

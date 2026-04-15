@@ -1,8 +1,10 @@
 import logging
 
+from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 from processes.handlers.hazard import mainhandler_hazard
+from processes.models import HazardInputs
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,11 +46,12 @@ class LareHazardProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        for key in ('name', 'hazard'):
-            if key not in data:
-                raise ProcessorExecuteError(f'Missing required input: {key}')
+        try:
+            inputs = HazardInputs.model_validate(data)
+        except ValidationError as exc:
+            raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
-        result = mainhandler_hazard(data['name'], data['hazard'])
+        result = mainhandler_hazard(inputs.name, inputs.hazard)
         return 'application/json', result
 
     def __repr__(self):

@@ -28,18 +28,13 @@
 # your own tools.
 
 # native
-import os
 import gc
 import json
-import yaml
-from collections import defaultdict
-import pandas as pd
-import numpy as np
 import logging
+from pathlib import Path
 
 # imports
 import geopandas as gpd
-from shapely.geometry import Polygon
 import numpy as np
 import rasterio
 from rasterio.features import rasterize
@@ -47,12 +42,13 @@ from rasterio.transform import Affine
 
 # local
 from processes.config import get_config
+from processes.handlers.session import load_region
 from processes.utils.raster import aggregate_coastal, lare_raster, reclassify_fast
 from processes.utils.wfs import clipfromwfs_cql
-from processes.utils.vector import transformgdf, is_metric_crs
-from processes.utils.geoserver import publish_gpkg, createvieweroutput, GS, filtervectorbyvector
+from processes.utils.vector import ensure_metric
+from processes.utils.geoserver import publish_and_respond, filtervectorbyvector
 
-def mainhandler_coastal(sessionid):
+def mainhandler_coastal(sessionid, hexagons: gpd.GeoDataFrame = None):
     """
     Main entry point for the coastal archetype workflow.
 
@@ -77,6 +73,11 @@ def mainhandler_coastal(sessionid):
     sessionid : str
         Unique identifier for the current user/session; used to locate
         temporary input/output files and to name GeoServer resources.
+    hexagons : GeoDataFrame, optional
+        Pre-built hexagon grid for this session (e.g. returned by
+        ``hexgrid_within`` in the UoM step).  When supplied the function
+        skips reading ``hexagons_<sessionid>.gpkg`` from disk.  If omitted
+        the file is read from the session directory as before.
 
     Returns
     -------
@@ -88,54 +89,22 @@ def mainhandler_coastal(sessionid):
     # Load application configuration and basic paths/URLs for this run
     cfg = get_config()
     geoserver_url = cfg.ows_base
-    tmpdir = cfg.tmpdir
-    wmsurl = cfg.geoserver.url
-    
-    # coastal urban archetype always has the same ingredients:
-    # - identify region.gpkg
-    # - identify if there is a coast!
-    # - clip coast from wfs (decide to convert this to polygon, in case reuse in coming steps)
-    # - create a raster 1 km inland
-    # - clip CLC from csw for entire region.gpkg
-    # - clip dem for coastal zone
-    # - clip imperviousness for coastal zone
-    # - clip population for coastal zone
 
-    regionfile = os.path.join(tmpdir, f'{sessionid}', 'region.gpkg')
-    if not os.path.exists(regionfile):
-        error_msg = f"!-- Main handler uom: Region file not found for session {sessionid} at expected location: {regionfile}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
+    try:
+        sessiondir, gdf = load_region(sessionid)
+    except (FileNotFoundError, ValueError) as exc:
+        logging.error('!-- Main handler coastal: %s', exc)
+        return json.dumps({'error': str(exc)})
 
-    gdf = gpd.read_file(regionfile,)
-    if gdf.empty:
-        error_msg = f"!-- Main handler uom: Region file for session {sessionid} is empty: {regionfile}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
-    else:
-        logging.info(f'!-- Main handler uom: Successfully read region file for session {sessionid} with {len(gdf)} features from {regionfile}')
-    
-    #buffer the region by 1km
-    gdf_buffered = gdf.copy()
-    if not is_metric_crs(gdf.crs):
-        gdf_buffered = transformgdf(gdf_buffered, 'EPSG:3857')
-        logging.info(f'!-- Main handler uom: Transformed region to metric CRS for buffering: {gdf_buffered.crs}')
+    gdf_buffered = ensure_metric(gdf.copy(), 3857)
     try:
         gdf_buffered['geometry'] = gdf_buffered.geometry.buffer(1000)
-        logging.info(f'!-- Main handler uom: Successfully buffered region by 1km for session {sessionid}')
     except Exception as e:
         error_msg = f"!-- Main handler uom: Failed to buffer region for session {sessionid}: {str(e)}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
 
-    # get coastal zone layer name from app config
-    try:
-        coastlayer = cfg.layer_coastline
-        logging.info(f'!-- Main handler uom: Successfully retrieved coastal zone {coastlayer} layer from app config for session {sessionid}')    
-    except KeyError as e:
-        error_msg = f"!-- Main handler uom: Failed to get coastal zone layer from app config for session {sessionid}: {str(e)}"
-        logging.error(error_msg)
-        return json.dumps({'error': error_msg})
+    coastlayer = cfg.layer_coastline
 
     # identify if there is a coast in the region, by clipping the coastal zone from wfs and checking if it has any features
     try:
@@ -144,27 +113,20 @@ def mainhandler_coastal(sessionid):
             error_msg = f"!-- Main handler uom: No coastal zone features found intersecting the region for session {sessionid}. This process is intended for coastal areas. Please provide a valid coastal region."
             logging.error(error_msg)
             return json.dumps({'error': error_msg})
-        logging.info(f'!-- Main handler uom: Successfully identified coastal zone with {len(gdfcoastal_zone)} features for session {sessionid}')
     except Exception as e:
         error_msg = f"!-- Main handler uom: Failed to identify coastal zone for session {sessionid}: {str(e)}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
     
-    gdfcoastal_zone.to_file(os.path.join(tmpdir, f'{sessionid}',f'coastal_zone.gpkg'), driver='GPKG')
+    gdfcoastal_zone.to_file(sessiondir / 'coastal_zone.gpkg', driver='GPKG')
 
     # Create a 100m resolution raster of the coastal zone (buffered coastline intersected with region)
     try:
         # Ensure coastal zone is in metric CRS for buffering
-        if not is_metric_crs(gdfcoastal_zone.crs):
-            gdfcoastal_buffered = transformgdf(gdfcoastal_zone, 3857)
-            logging.info(f'!-- Main handler coastal: Transformed coastal zone to metric CRS: {gdfcoastal_buffered.crs}')
-        else:
-            gdfcoastal_buffered = gdfcoastal_zone.copy()
-        
-        # Buffer the clipped coastline by 1km
+        gdfcoastal_buffered = ensure_metric(gdfcoastal_zone.copy(), 3857)
+
         gdfcoastal_buffered['geometry'] = gdfcoastal_buffered.geometry.buffer(1000)
-        logging.info(f'!-- Main handler coastal: Successfully buffered clipped coastline by 1km for session {sessionid}')
-        gdfcoastal_buffered.to_file(os.path.join(tmpdir, f'{sessionid}', f'coastal_zone_1km_buffered.gpkg'), driver='GPKG')
+        gdfcoastal_buffered.to_file(sessiondir / 'coastal_zone_1km_buffered.gpkg', driver='GPKG')
 
         # Define raster parameters using the extent of the intersection
         resolution = 100  # 100 meter resolution
@@ -192,7 +154,7 @@ def mainhandler_coastal(sessionid):
         )
         
         # Save the raster to GeoTIFF
-        raster_output_path = os.path.join(tmpdir, f'{sessionid}', 'coastal_zone_raster_100m.tif')
+        raster_output_path = str(sessiondir / 'coastal_zone_raster_100m.tif')
         
         with rasterio.open(
             raster_output_path,
@@ -208,7 +170,6 @@ def mainhandler_coastal(sessionid):
         ) as dst:
             dst.write(raster_array, 1)
         
-        logging.info(f'!-- Main handler coastal: Successfully created 100m resolution raster at {raster_output_path} for session {sessionid} with dimensions {width}x{height}')
     except Exception as e:
         error_msg = f"!-- Main handler coastal: Failed to create coastal zone raster for session {sessionid}: {str(e)}"
         logging.error(error_msg)
@@ -221,24 +182,18 @@ def mainhandler_coastal(sessionid):
         error_msg = f"!-- Main handler coastal: Failed to clip Corine Landcover layer for session {sessionid}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
-    else:
-        logging.info(f'!-- Main handler coastal: Successfully clipped Corine Landcover layer for session {sessionid}')
 
     outdem = lare_raster(gdfcoastal_buffered, 4258, 'dem', sessionid)
     if outdem is None:
         error_msg = f"!-- Main handler coastal: Failed to clip DEM layer for session {sessionid}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
-    else:   
-        logging.info(f'!-- Main handler coastal: Successfully clipped DEM layer for session {sessionid}')   
-    
+
     outimp = lare_raster(gdfcoastal_buffered, 3035, 'imperviousness', sessionid)
     if outimp is None:
         error_msg = f"!-- Main handler coastal: Failed to clip Imperviousness layer for session {sessionid}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
-    else:
-        logging.info(f'!-- Main handler coastal: Successfully clipped Imperviousness layer for session {sessionid}')
 
 
     # Force cleanup of native GDAL/rasterio objects from lare_raster calls
@@ -248,26 +203,21 @@ def mainhandler_coastal(sessionid):
     # Restrict aggregation to hexagons that intersect the 1 km buffered
     # coastal zone, following a QGIS-style "Select by location (intersect)".
     try:
-        session_dir = os.path.join(tmpdir, f"{sessionid}")
-        hex_path = os.path.join(session_dir, f"hexagons_{sessionid}.gpkg")
-        coastal_path = os.path.join(session_dir, "coastal_zone_1km_buffered.gpkg")
+        hex_path = sessiondir / f'hexagons_{sessionid}.gpkg'
 
-        if not os.path.exists(hex_path):
-            error_msg = f"!-- Main handler coastal: Hexagon grid not found for session {sessionid} at expected location: {hex_path}"
-            logging.error(error_msg)
-            return json.dumps({'error': error_msg})
-        if not os.path.exists(coastal_path):
-            error_msg = f"!-- Main handler coastal: Coastal buffer file not found for session {sessionid} at expected location: {coastal_path}"
-            logging.error(error_msg)
-            return json.dumps({'error': error_msg})
+        if hexagons is None:
+            if not hex_path.exists():
+                error_msg = f"!-- Main handler coastal: Hexagon grid not found for session {sessionid} at expected location: {hex_path}"
+                logging.error(error_msg)
+                return json.dumps({'error': error_msg})
+            hexagons = gpd.read_file(hex_path)
 
-        # Read layers
-        hexagons = gpd.read_file(hex_path)
-        coastal = gpd.read_file(coastal_path)
+        # gdfcoastal_buffered is already in memory from the buffering step above;
+        # no need to re-read coastal_zone_1km_buffered.gpkg from disk.
+        coastal = gdfcoastal_buffered
 
         # Ensure both are in the same CRS
         if hexagons.crs != coastal.crs:
-            logging.info(f'!-- Main handler coastal: Reprojecting coastal buffer from {coastal.crs} to {hexagons.crs} for intersection with hexagons')
             coastal = coastal.to_crs(hexagons.crs)
 
        
@@ -281,35 +231,23 @@ def mainhandler_coastal(sessionid):
 
         # Save coastal-only subset to a separate GeoPackage so the original
         # hexagon file (full grid) remains available.
-        coastal_hex_path = os.path.join(session_dir, f'hexagons_coastal_{sessionid}.gpkg')
+        coastal_hex_path = sessiondir / f'hexagons_coastal_{sessionid}.gpkg'
         hexagons_coastal.to_file(coastal_hex_path, driver="GPKG")
-        logging.info(f'!-- Main handler coastal: Saved {len(hexagons_coastal)} coastal hexagons to {coastal_hex_path}')
 
     except Exception as e:
         error_msg = f"!-- Main handler coastal: Failed to derive coastal hexagon subset for session {sessionid}: {str(e)}"
         logging.error(error_msg)
         return json.dumps({'error': error_msg})
 
-    # call aggregate_coastal(sessionid) on coastal-only hexagons
-    logging.info(f'!-- Main handler coastal: Starting aggregation of coastal data for session {sessionid} using coastal hexagon subset')
     aggregate_coastal(sessionid)
-    hexgrid = os.path.join(tmpdir,f'{sessionid}',f'hexagons_coastal_{sessionid}.gpkg')
+    hexgrid = str(sessiondir / f'hexagons_coastal_{sessionid}.gpkg')
 
     try:
-        # Clean up old layer and datastore before publishing new one
-        store_name = f'hexagons_{sessionid}'
-        try:
-            gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
-            # Try to delete old datastore (with recursive=True to delete all layers within it)
-            logging.info(f'!-- Attempting to clean up old datastore: {store_name}')
-            gs.delete_layer_and_store('tmp', store_name)
-        except Exception as cleanup_err:
-            logging.warning(f'!-- Cleanup of old datastore failed (may not exist): {str(cleanup_err)}')
-        
-        # Now publish the new GeoPackage
-        wmslay = publish_gpkg(hexgrid)
-        res = createvieweroutput(wmslay, 'Unit of Measurement', {'uom':'Unit of Measurement'}, geoserver_url)
-        return res
+        return publish_and_respond(
+            Path(hexgrid),
+            'Unit of Measurement',
+            {'uom': 'Unit of Measurement'},
+        )
     except Exception as e:
         error_msg = f"!-- Main handler uom: Failed to publish hexagrid to GeoServer: {str(e)}"
         logging.error(error_msg)
