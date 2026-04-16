@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# Copyright (C) 2025 Deltares
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
 Diagnostic script to test GeoServer and environment
 Run this on the deployment server to check versions and capabilities

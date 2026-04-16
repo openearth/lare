@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Deltares
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Centralised, read-once application configuration backed by Pydantic.
 
 Usage

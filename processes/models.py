@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Deltares
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator

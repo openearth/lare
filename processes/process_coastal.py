@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Deltares
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import logging
 
 from pydantic import ValidationError
@@ -29,6 +32,11 @@ PROCESS_METADATA = {
         'result': {
             'title': 'Coastal analysis result',
             'schema': {'type': 'object', 'contentMediaType': 'application/json'},
+        },
+    },
+        'example': {
+        'inputs': {
+            'sessionid': '17751340029381046',
         }
     },
 }
