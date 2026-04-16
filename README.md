@@ -18,13 +18,10 @@ docker compose up --build
 
 - **`processes/`**, **`app.yml`**, and **`./tmp`** are bind-mounted into the container.
 - **`PYTHONPATH=/pygeoapi`** makes Python load the live `processes/` tree (over the copy installed by `pip install` in the image).
-- **`run-with-hot-reload`** runs Gunicorn with `--reload` and reloads when `pygeoapi-config.yml` changes (see [pygeoapi Docker](https://docs.pygeoapi.io/en/latest/docker.html)). Worker count uses the image default (**4** Gunicorn workers) unless you set **`WSGI_WORKERS`**.
+
 - Session directories from `lare-start` appear under **`./tmp`** on the host when `sdi.tmp.tmpdir` in `app.yml` is `/pygeoapi/tmp` (mapped to `./tmp`).
 - After changing **`pyproject.toml`** dependencies, rebuild: `docker compose build --no-cache`.
 
-### Production
-
-Use an image built from the `Dockerfile` without mounting `./processes` or `./tmp`. Omit **`command`** (default is `run`) or set **`command: ["run"]`**, remove **`PYTHONPATH`**, and set **`WSGI_WORKERS`** as needed. Mount only your `pygeoapi-config.yml` (and `app.yml` if not baked into the image).
 
 ### Config: temp directory override
 
@@ -40,12 +37,6 @@ Useful endpoints:
 | [http://localhost:5000/openapi](http://localhost:5000/openapi) | OpenAPI document / Swagger UI |
 
 
-Run in the background:
-
-```bash
-docker compose up -d --build
-```
-
 Stop:
 
 ```bash
@@ -54,9 +45,30 @@ docker compose down
 
 If port `5000` is already in use, change the left side of the port mapping in `docker-compose.yml` (e.g. `5001:80`).
 
-## Legacy PyWPS
+## Creating a New Process
 
-The previous PyWPS-based service and related files live under `lare-legacy/` and are not used by the Docker image above.
+To add a new process such as `process_new.py`:
+
+1. Create a new input model in `processes/models.py`.
+   Add a Pydantic model that defines and validates the request payload for the new process.
+
+2. Implement the workflow in `processes/handlers/{new}.py`.
+   Put the actual process logic in a handler function such as `mainhandler`. Keep file I/O, geospatial work, and publishing logic here.
+
+3. Create the pygeoapi processor in `processes/process_{new}.py`.
+   Add a `PROCESS_METADATA` dictionary and a processor class such as `LareNewProcessor`.
+
+4. Define clear process metadata.
+   Include the process `id`, `title`, `description`, `jobControlOptions`, `inputs`, `outputs`, and an `example`. This metadata controls how the process appears in pygeoapi.
+
+5. Register the process in `pygeoapi-config.yml`.
+   Add a new entry under `resources:` that points to the processor class, for example `processes.process_new.LareNewProcessor`.
+
+6. Reuse shared configuration from `processes/config.py`.
+   Use `get_config()` for paths, GeoServer settings, layers, and the temp directory instead of hardcoding values.
+
+
+7. After starting Docker, check that the new process appears at `/processes` and that it executes correctly through the API.
 
 ## License
 
