@@ -7,7 +7,6 @@ app.yml
 tmp/*
 *.tif
 *.tif.*
-utils/
 tmp/
 templates/
 wps_ri2de*.py
