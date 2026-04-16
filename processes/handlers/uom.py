@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+import os
 from pathlib import Path
 from time import perf_counter
 
 import geopandas as gpd
 import numpy as np
+import rasterio
 from shapely import STRtree
 from shapely.geometry import Polygon
 
@@ -15,6 +17,10 @@ from processes.handlers.session import load_session
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric, is_metric_crs
 from processes.utils.geoserver import publish_and_respond
+from processes.utils.raster import lare_raster
+from processes.utils import load_reclass_table
+from processes.handlers.coastal  import _create_coastal_buffer
+from processes.handlers.reclass_clc import reclassify_fast
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +83,74 @@ def _require_name_field(cfg, layername: str) -> str:
     return name_field
 
 
+# Archetype name → numeric code in landscapearchetype.csv (lac column)
+_ARCHETYPE_CODES = {'coastal': 1, 'urban': 2, 'rural': 3, 'mountainous': 4}
+
+
+def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str) -> str:
+    """Clip the CLC raster to *gdf* and reclassify it into landscape archetype codes.
+
+    Uses ``lare_raster`` to clip the CLC layer, then reclassifies pixel values
+    from CLC codes to landscape archetype codes (lac) using the archetype CSV
+    defined in ``app.yml`` (``hazards.clc_scores.archetype``).  Only pixels whose
+    archetype code matches *archetype* are kept; all others are set to nodata.
+
+    Args:
+        gdf (GeoDataFrame): Region geometry used to clip the CLC raster.
+        archetype (str): Archetype to retain (``'urban'``, ``'rural'``,
+            ``'coastal'``, or ``'mountainous'``).
+        sessionid (str): Current session identifier.
+
+    Returns:
+        str: Path to the output raster with only the matching archetype pixels.
+
+    Raises:
+        ValueError: If *archetype* is unknown or the CLC clip/reclassification fails.
+    """
+    archetype_lower = archetype.lower()
+    if archetype_lower not in _ARCHETYPE_CODES:
+        raise ValueError(f'Unknown archetype "{archetype}". Expected one of {list(_ARCHETYPE_CODES)}')
+
+    cfg = get_config()
+
+    # 1. Clip CLC raster to the GeoDataFrame extent
+    outclc = lare_raster(gdf, 3035, 'clc', sessionid)
+    if outclc is None:
+        raise ValueError(f'CLC clip failed for session {sessionid}')
+
+    # 2. Load reclassification table: CLC code → landscape archetype code (lac)
+    csv_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores)
+    )
+    reclass_dict = load_reclass_table(csv_path, lusecol='clc', reclasscol='lac')
+    if reclass_dict is None:
+        raise ValueError(f'Failed to load archetype reclass table from {csv_path}')
+
+    # 3. Open CLC raster, reclassify, and mask to the requested archetype
+    with rasterio.open(outclc) as src:
+        clc_array = src.read(1)
+        meta = src.meta.copy()
+
+    archetype_array = reclassify_fast(clc_array, reclass_dict, dtype='int32',
+                                      original_nodata=meta.get('nodata'))
+    if archetype_array is None:
+        raise ValueError(f'Reclassification to archetype codes failed for session {sessionid}')
+
+    # Keep only the target archetype; set everything else to nodata
+    target_code = _ARCHETYPE_CODES[archetype_lower]
+    nodata_out = 0
+    archetype_array[archetype_array != target_code] = nodata_out
+
+    # 4. Save result
+    out_path = outclc.replace('clc', f'clc_{archetype_lower}')
+    meta.update(dtype='int32', nodata=nodata_out)
+    with rasterio.open(out_path, 'w', **meta) as dst:
+        dst.write(archetype_array, 1)
+
+    logger.info('Archetype raster written: %s (%s=%d)', out_path, archetype_lower, target_code)
+    return out_path
+
+
 def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str) -> gpd.GeoDataFrame:
     """Fetch region geometry from WFS and ensure at least one feature exists."""
     gdf = clipfromwfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layername)
@@ -104,6 +178,15 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> di
         logger.info('perf:lare_uom reproject_seconds=%.3f', perf_counter() - t_reproj_start)
     t_region_write_start = perf_counter()
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
+    
+    #TODO if archetype is coastal, also save a version in 4326 for use in the coastal processor
+    archetype = 'urban'
+    if archetype == 'coastal':  
+        # clip it with the coastal buffer before saving, to reduce file size and speed up processing in the coastal processor
+        gdf = _create_coastal_buffer(gdf, buffer=1000, sessionid=sessionid)
+    if archetype in ('rural', 'urban'):
+        _clip_and_classify_clc(gdf, archetype, sessionid)
+
     t_region_write_end = perf_counter()
     logger.debug('Region area: %.1f', gdf.area.sum())
 

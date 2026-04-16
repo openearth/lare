@@ -792,6 +792,26 @@ def publish_and_respond(gpkg_path: Path, folder: str, titles: dict) -> list[dict
 
 
 def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs):
+    """Filter a vector layer on GeoServer by spatial intersection with a local GeoDataFrame geometry.
+
+    Reprojects the filter geometry to the target CRS, converts it to WKT (simplifying
+    large geometries to avoid oversized payloads), and issues a WFS GetFeature request
+    with a CQL Intersects filter against the specified layer.
+
+    Args:
+        geoserver_url (str): Base WFS endpoint URL of the GeoServer instance.
+        filtergdf (GeoDataFrame): GeoDataFrame whose first geometry is used as the
+            spatial filter.
+        filter_crs: CRS of *filtergdf* (used for documentation; the actual CRS is read
+            from ``filtergdf.crs``).
+        kcslayer (str): Fully-qualified GeoServer layer name to query
+            (e.g. ``'workspace:layername'``).
+        kcs_crs (int): EPSG code of the target layer's coordinate reference system.
+
+    Returns:
+        GeoDataFrame | None: A GeoDataFrame of intersecting features in the target CRS,
+            an empty GeoDataFrame if no features match, or ``None`` on error.
+    """
     try:
         if filtergdf is None or filtergdf.empty:
             logging.error('filtervectorbyvector: filtergdf is None or empty')

@@ -39,6 +39,43 @@ def _load_or_read_hexagons(
         raise FileNotFoundError(f'Hexagon grid not found: {hex_path}')
     return gpd.read_file(hex_path)
 
+def _create_coastal_buffer(gdf: gpd.GeoDataFrame, buffer: float = 1000, sessionid: str = None) -> gpd.GeoDataFrame:
+    """Create a buffered coastal zone by spatial intersection with GeoServer coastline layer.
+
+    Loads the region geometry for the given session, buffers it by the specified distance
+    (in meters, with reprojection to EPSG:3857), and queries the GeoServer coastline layer
+    for all features that intersect the buffered geometry.
+
+    Args:
+        gdf (GeoDataFrame): Input geometry (currently unused; region is loaded from session).
+        buffer (float): Buffer distance in meters. Defaults to 1000 m.
+        sessionid (str): Session ID used to load the region geometry via ``load_region()``.
+
+    Returns:
+        GeoDataFrame: Coastal zone features from GeoServer in EPSG:3857 that intersect
+            the buffered region.
+
+    Raises:
+        ValueError: If no coastal zone features intersect the buffered region (indicates
+            the region is not in a coastal area).
+    """
+    cfg = get_config()
+    geoserver_url = cfg.ows_base
+    
+    _, gdf = load_region(sessionid)
+
+    gdf_buffered = ensure_metric(gdf.copy(), 3857)
+    gdf_buffered['geometry'] = gdf_buffered.geometry.buffer(buffer)
+
+    coastlayer = cfg.layer_coastline
+
+    gdfcoastal_zone = filtervectorbyvector(geoserver_url, gdf_buffered, gdf_buffered.crs, coastlayer, 3857)
+    if gdfcoastal_zone is None or gdfcoastal_zone.empty:
+        raise ValueError(
+            f'No coastal zone features intersect the region for session {sessionid}. '
+            'This process is intended for coastal areas.'
+        )
+    return gdfcoastal_zone
 
 def mainhandler_coastal(sessionid, hexagons: gpd.GeoDataFrame = None):
     """
