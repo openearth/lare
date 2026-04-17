@@ -52,6 +52,14 @@ PROCESS_METADATA = {
             'schema': {'type': 'object', 'contentMediaType': 'application/json'},
         }
     },
+    'example': {
+        'inputs': {
+            'sessionid': '17751340029381046',
+            'kcs': 'transport',
+            'hazard': 'pluvial_RP100',
+            'archetype': 'coastal',
+        }
+    },
 }
 
 
