@@ -15,6 +15,7 @@ services:
       - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:ro
       - ./processes:/pygeoapi/processes
       - ./app.yml:/pygeoapi/app.yml:ro
+      - ./data:/pygeoapi/data:ro
       - ./tmp:/pygeoapi/tmp
 
   # --- Uncomment when LARE processes are ready ---
