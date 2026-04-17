@@ -20,6 +20,7 @@ class UomInputs(BaseModel):
     uomsize: int
     layername: str = Field(min_length=1)
     id: str = Field(min_length=1)
+    archetype: Literal['coastal', 'urban', 'rural']
 
 
 class UomKcsInputs(BaseModel):

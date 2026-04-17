@@ -120,7 +120,7 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
 
     # 2. Load reclassification table: CLC code → landscape archetype code (lac)
     csv_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores)
+        os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores['archetype'])
     )
     reclass_dict = load_reclass_table(csv_path, lusecol='clc', reclasscol='lac')
     print(f'Loaded reclass table from {csv_path}: {reclass_dict}')
@@ -160,7 +160,7 @@ def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str)
     return gdf
 
 
-def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> dict:
+def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str, archetype: str) -> dict:
     t0 = perf_counter()
     cfg = get_config()
     t1 = perf_counter()
@@ -181,7 +181,6 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> di
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
     
     #TODO if archetype is coastal, also save a version in 4326 for use in the coastal processor
-    archetype = 'urban'
     if archetype == 'coastal':  
         # clip it with the coastal buffer before saving, to reduce file size and speed up processing in the coastal processor
         gdf = _create_coastal_buffer(gdf, buffer=1000, sessionid=sessionid)
@@ -191,7 +190,7 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str) -> di
     t_region_write_end = perf_counter()
     logger.debug('Region area: %.1f', gdf.area.sum())
 
-    hexgrid_path = sessiondir / f'hexagons_{sessionid}.gpkg'
+    hexgrid_path = sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg'
     t_hex_start = perf_counter()
     hexgdf = hexgrid_within(gdf, uomsize)
     t_hex_end = perf_counter()

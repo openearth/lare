@@ -45,6 +45,12 @@ PROCESS_METADATA = {
             'schema': {'type': 'string'},
             'minOccurs': 1,
         },
+        'archetype': {
+            'title': 'Archetype',
+            'description': 'Archetype identifier (e.g. coastal, urban, rural).',
+            'schema': {'type': 'string'},
+            'minOccurs': 1,
+        },
     },
     'outputs': {
         'result': {
@@ -58,6 +64,7 @@ PROCESS_METADATA = {
             'uomsize': 100000,
             'layername': 'region:nuts_2021',
             'id': 'Cantabria',
+            'archetype': 'coastal',
         }
     },
 }
@@ -80,6 +87,7 @@ class LareUomProcessor(BaseProcessor):
                 inputs.uomsize,
                 inputs.layername,
                 inputs.id,
+                inputs.archetype,
             )
         except (FileNotFoundError, ValueError) as exc:
             raise ProcessorExecuteError(str(exc)) from exc
