@@ -64,10 +64,6 @@ resources:
     processor:
       name: processes.process_coastal.LareCoastalProcessor
 
-  lare-hazard:
-    type: process
-    processor:
-      name: processes.process_hazard.LareHazardProcessor
 
   lare-uomkcs:
     type: process
