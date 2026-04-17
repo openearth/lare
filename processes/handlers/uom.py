@@ -123,6 +123,7 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
         os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores)
     )
     reclass_dict = load_reclass_table(csv_path, lusecol='clc', reclasscol='lac')
+    print(f'Loaded reclass table from {csv_path}: {reclass_dict}')
     if reclass_dict is None:
         raise ValueError(f'Failed to load archetype reclass table from {csv_path}')
 
