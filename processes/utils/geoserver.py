@@ -818,6 +818,7 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
             return None
 
         filter_epsg = filtergdf.crs.to_epsg() if filtergdf.crs else None
+        #TODO: we need to change the name of nuts, because we support also the hydrobasins. 
         nuts_gdf = filtergdf.to_crs(epsg=kcs_crs) if filter_epsg != kcs_crs else filtergdf
 
         geom = nuts_gdf.geometry.iloc[0]

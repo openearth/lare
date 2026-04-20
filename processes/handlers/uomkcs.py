@@ -71,7 +71,7 @@ def test():
     hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
 
     logger.debug("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
-
+#TODO: in case of vector we will need also an indicator. We need to add this in the app.yml
 def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
     if outkcs is None:
         raise RuntimeError("KCS input is None, cannot aggregate to UoM")
@@ -136,17 +136,20 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     sessiondir = load_session(sessionid)
     uomgpkg = _require_uomgpkg(sessiondir, sessionid, archetype)
 
-    # hazard key already validated against cfg.hazard_layers by UomKcsInputs
+    #TODO: add the correct hazard layer to the config. E.g drought.
     hazardlayer = cfg.hazard_layers[hazard]
     logger.info('uomkcs: hazard %r -> layer %s', hazard, hazardlayer)
 
     uom = gpd.read_file(uomgpkg)
+    #In this step we are clipping the hazard layer to the UoM.
     hazardtif = _require_hazard_raster(uom, hazardlayer, sessionid)
+    #In this step we are readin from the config the KCS layer and the datatype.
     kcslayer, datatype = _resolve_kcs_layer(cfg, kcs)
 
     if datatype == 'raster':
         outkcs = lare_raster(uom, uom.crs, kcs)
         logger.debug('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
+        
     elif datatype == 'vector':
         filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
         outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
