@@ -13,12 +13,13 @@ Usage
 """
 
 import os
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +59,35 @@ class OwsConfig(BaseModel):
     wfs_nuts: WfsNutsConfig
 
 
+class KcsType(str, Enum):
+    raster = "raster"
+    vector = "vector"
+
+
+class KcsAggregation(str, Enum):
+    length = "length"        # sum of line length per UoM (metres)
+    count = "count"          # count of intersecting features
+
+
+class KcsEntry(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    type: KcsType
+    aggregation: Optional[KcsAggregation] = None
+    output_column: Optional[str] = None   # defaults to 'length' for back-compat
+
+    @field_validator("aggregation", mode="after")
+    @classmethod
+    def _aggregation_required_for_vector(cls, v, info):
+        if info.data.get("type") == KcsType.vector and v is None:
+            raise ValueError("aggregation is required when type is 'vector'")
+        return v
+
+
+
 class LayersConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
     datasets: Dict[str, str] = {}
-    kcs: Dict[str, str] = {}
+    kcs: Dict[str, KcsEntry] = {}
     dem: str
     clc: str
     eunis: str
@@ -69,6 +95,20 @@ class LayersConfig(BaseModel):
     imperviousness: str
     transport: str = ""
     population: str = ""
+
+    @field_validator("kcs", mode="before")
+    @classmethod
+    def _accept_legacy_kcs(cls, v):
+        """Accept the legacy ``{layer: "raster"|"vector"}`` flat string format."""
+        if not v:
+            return v
+        out = {}
+        for k, val in v.items():
+            if isinstance(val, str):
+                out[k] = {"type": val}
+            else:
+                out[k] = val
+        return out
 
 
 class HazardsConfig(BaseModel):
@@ -138,7 +178,7 @@ class AppConfig(BaseModel):
         return self.layers.datasets
 
     @property
-    def kcs(self) -> Dict[str, str]:
+    def kcs(self) -> Dict[str, "KcsEntry"]:
         return self.layers.kcs
 
     @property
