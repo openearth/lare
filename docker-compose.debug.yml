@@ -1,0 +1,15 @@
+services:
+  pygeoapi:
+    environment:
+      PYGEOAPI_CONFIG: /pygeoapi/local.config.yml
+      PYGEOAPI_OPENAPI: /pygeoapi/local.openapi.yml
+    ports:
+      - "5000:80"
+      - "5678:5678"
+    entrypoint: []
+    command:
+      [
+        "/bin/sh",
+        "-lc",
+        "/venv/bin/pygeoapi openapi generate /pygeoapi/local.config.yml -f yaml -of /pygeoapi/local.openapi.yml && /venv/bin/python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m gunicorn pygeoapi.flask_app:APP --bind 0.0.0.0:80 --workers 1 --threads 1 --timeout 0 --reload"
+      ]

@@ -141,7 +141,8 @@ def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
         aggregated = sjoin_result.groupby('id', as_index=False)[output_column].sum()
     else:
         raise ValueError(f"Unknown aggregation kind: {entry.aggregation!r}")
-
+    
+    
     if output_column in uom.columns:
         uom = uom.drop(columns=[output_column])
 
@@ -194,5 +195,5 @@ def mainhandler(sessionid, kcs, hazard, archetype):
     aggregate_hazard(sessionid, hazardtif, archetype)
 
     layer_name = f'hexagons_{archetype}_{sessionid}_{kcs}'
-    republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name='hazard', layer_name=layer_name)
+    republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name=entry.style, layer_name=layer_name)
     return createvieweroutput([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wmsurl)

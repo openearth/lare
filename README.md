@@ -45,6 +45,26 @@ docker compose down
 
 If port `5000` is already in use, change the left side of the port mapping in `docker-compose.yml` (e.g. `5001:80`).
 
+### Debug API requests with breakpoints (Docker + debugpy)
+
+Use this when you want breakpoints in `processes/` to hit while calling API endpoints.
+
+1. Start pygeoapi in debug mode:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+```
+
+2. In Cursor/VS Code, run debugger config **Attach pygeoapi (Docker)** (`.vscode/launch.json`).
+
+3. Add breakpoints in process code, for example `processes/handlers/uomkcs.py`.
+
+4. Send a request to the process endpoint
+
+
+Notes:
+- Stop containers with `docker compose down`.
+
 ## Creating a New Process
 
 To add a new process such as `process_new.py`:
