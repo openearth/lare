@@ -73,7 +73,8 @@ class KcsEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
     type: KcsType
     aggregation: Optional[KcsAggregation] = None
-    output_column: Optional[str] = None   # defaults to 'length' for back-compat
+    output_column: Optional[str] = None
+    style: str = "hazard"
 
     @field_validator("aggregation", mode="after")
     @classmethod
