@@ -791,7 +791,7 @@ def publish_and_respond(gpkg_path: Path, folder: str, titles: dict) -> list[dict
     return result
 
 
-def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs):
+def filter_vector_by_vector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs):
     """Filter a vector layer on GeoServer by spatial intersection with a local GeoDataFrame geometry.
 
     Reprojects the filter geometry to the target CRS, converts it to WKT (simplifying
@@ -814,7 +814,7 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
     """
     try:
         if filtergdf is None or filtergdf.empty:
-            logging.error('filtervectorbyvector: filtergdf is None or empty')
+            logging.error('filter_vector_by_vector: filtergdf is None or empty')
             return None
 
         filter_epsg = filtergdf.crs.to_epsg() if filtergdf.crs else None
@@ -823,11 +823,11 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
 
         geom = nuts_gdf.geometry.iloc[0]
         if geom is None or geom.is_empty:
-            logging.error('filtervectorbyvector: geometry is None or empty')
+            logging.error('filter_vector_by_vector: geometry is None or empty')
             return None
 
         if not geom.is_valid:
-            logging.warning('filtervectorbyvector: invalid geometry, attempting buffer(0) fix')
+            logging.warning('filter_vector_by_vector: invalid geometry, attempting buffer(0) fix')
             geom = geom.buffer(0)
 
         wkt_representation = dumps(geom, rounding_precision=6, trim=True)
@@ -839,10 +839,10 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
             tolerance = max(span * 0.0001, 1e-06)
             simplified_geom = geom.simplify(tolerance, preserve_topology=True)
             wkt_representation = dumps(simplified_geom, rounding_precision=6, trim=True)
-            logging.info('filtervectorbyvector: geometry simplified (tolerance=%s)', tolerance)
+            logging.info('filter_vector_by_vector: geometry simplified (tolerance=%s)', tolerance)
 
     except Exception as e:
-        logging.error('filtervectorbyvector: WKT preparation failed: %s', e)
+        logging.error('filter_vector_by_vector: WKT preparation failed: %s', e)
         return None
 
     kcs_params = {
@@ -860,30 +860,30 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
 
         # Fallback for servers that do not allow KVP POST.
         if kcs_response.status_code in (405, 501):
-            logging.warning('filtervectorbyvector: POST not supported (%s), falling back to GET', kcs_response.status_code)
+            logging.warning('filter_vector_by_vector: POST not supported (%s), falling back to GET', kcs_response.status_code)
             kcs_response = requests.get(geoserver_url, params=kcs_params, timeout=120)
 
         if kcs_response.status_code != 200:
-            logging.error('filtervectorbyvector: HTTP %s from %s', kcs_response.status_code, geoserver_url)
+            logging.error('filter_vector_by_vector: HTTP %s from %s', kcs_response.status_code, geoserver_url)
             return None
 
         try:
             kcs_data = kcs_response.json()
         except ValueError as ve:
-            logging.error('filtervectorbyvector: JSON parse failed: %s', ve)
+            logging.error('filter_vector_by_vector: JSON parse failed: %s', ve)
             return None
 
         if 'features' not in kcs_data:
-            logging.error('filtervectorbyvector: no features key in response; keys=%s', list(kcs_data.keys()))
+            logging.error('filter_vector_by_vector: no features key in response; keys=%s', list(kcs_data.keys()))
             return None
 
-        logging.info('filtervectorbyvector: %s → %d features', kcslayer, len(kcs_data['features']))
+        logging.info('filter_vector_by_vector: %s → %d features', kcslayer, len(kcs_data['features']))
 
     except GeoserverException as ge:
-        logging.error('filtervectorbyvector: GeoserverException: %s', ge)
+        logging.error('filter_vector_by_vector: GeoserverException: %s', ge)
         return None
     except Exception as e:
-        logging.error('filtervectorbyvector: request failed: %s', e)
+        logging.error('filter_vector_by_vector: request failed: %s', e)
         return None
 
     try:
@@ -891,5 +891,10 @@ def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs
             return gpd.GeoDataFrame()
         return gpd.GeoDataFrame.from_features(kcs_data['features'], crs=CRS.from_epsg(kcs_crs))
     except Exception as e:
-        logging.error('filtervectorbyvector: GeoDataFrame creation failed: %s', e)
+        logging.error('filter_vector_by_vector: GeoDataFrame creation failed: %s', e)
         return None
+
+
+def filtervectorbyvector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs):
+    """Backward-compatible alias for ``filter_vector_by_vector``."""
+    return filter_vector_by_vector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_crs)
