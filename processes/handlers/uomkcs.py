@@ -13,10 +13,15 @@ import fiona
 # local
 from processes.config import get_config
 from processes.handlers.session import load_session
+from processes.utils import load_reclass_table
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
 from processes.utils.geoserver import filtervectorbyvector, createvieweroutput, republish_layer
-from processes.utils.raster import lare_raster, aggregate_hazard
+from processes.utils.raster import (
+    lare_raster,
+    aggregate_hazard,
+    aggregate_raster_pixel_count_to_hexagons,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +132,46 @@ def aggregate_kcs_uom(outkcs, uomgpkg, sessionid=None):
     return uomgpkg
 
 
+def aggregate_kcs_raster_uom(outkcs_tif: str, uomgpkg: str, csv_path: str, kcs: str) -> str:
+    """Aggregate raster KCS to UoM as number of selected pixels per hexagon."""
+    if not outkcs_tif or not os.path.isfile(outkcs_tif):
+        raise FileNotFoundError(f'Raster KCS file not found: {outkcs_tif}')
+
+    layer_names = fiona.listlayers(uomgpkg)
+    if not layer_names:
+        raise RuntimeError(f"No layers found in {uomgpkg}")
+    uom_layer = layer_names[0]
+
+    uom = gpd.read_file(uomgpkg, layer=uom_layer, engine='pyogrio')
+    if uom.empty:
+        raise RuntimeError("UoM dataset is empty")
+
+    # Use same LUT loader pattern as in uom.py.
+    clc_to_lac = load_reclass_table(csv_path, lusecol='clc', reclasscol='lac')
+    if clc_to_lac is None:
+        raise ValueError(f'Failed to load reclassification table from {csv_path}')
+
+    # For agriculture KCS, keep rural/agricultural archetype classes (lac == 3).
+    if kcs.lower() == 'agriculture':
+        classes = [int(clc) for clc, lac in clc_to_lac.items() if np.isfinite(lac) and int(lac) == 3]
+        logger.info('uomkcs agriculture CLC classes selected: %s', classes)
+        print(f'uomkcs agriculture CLC classes selected: {classes}')
+    else:
+        classes = [int(clc) for clc, lac in clc_to_lac.items() if np.isfinite(lac)]
+
+    if not classes:
+        raise ValueError(f'No valid CLC classes found for KCS {kcs!r}')
+
+    uom = aggregate_raster_pixel_count_to_hexagons(outkcs_tif, uom, classes=classes)
+    if 'number of pixels' in uom.columns:
+        uom = uom.drop(columns=['number of pixels'])
+    uom.rename(columns={'aggregated_value': 'number of pixels'}, inplace=True)
+    uom['number of pixels'] = uom['number of pixels'].fillna(0)
+
+    uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
+    return uomgpkg
+
+
 
 def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     cfg = get_config()
@@ -145,8 +190,12 @@ def mainhandler_uomkcs(sessionid, kcs, hazard, archetype):
     kcslayer, datatype = _resolve_kcs_layer(cfg, kcs)
 
     if datatype == 'raster':
-        outkcs = lare_raster(uom, uom.crs, kcs)
+        outkcs = lare_raster(uom, uom.crs, kcslayer, sessionid=sessionid)
         logger.debug('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
+        csv_path = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores['archetype'])
+        )
+        aggregate_kcs_raster_uom(outkcs, uomgpkg, csv_path, kcs)
     elif datatype == 'vector':
         filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
         outkcs = filtervectorbyvector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)

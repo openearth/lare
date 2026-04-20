@@ -20,7 +20,7 @@ at2;score;clc;lac;lac_d;lac_st;lac_std;label;desc0;desc2;desc1
 24;2;19;3;Rural;;;241;Annual crops associated with permanent crops;Heterogeneous agricultural areas;Agricultural areas
 24;2;20;3;Rural;9;Agricultural land;242;Complex cultivation patterns;Heterogeneous agricultural areas;Agricultural areas
 24;2;21;3;Rural;9;Agricultural land;243;Land principally occupied by agriculture with significant areas;Heterogeneous agricultural areas;Agricultural areas
-24;2;22;;;;;244;Agro-forestry areas;Heterogeneous agricultural areas;Agricultural areas
+24;2;22;3;;;;244;Agro-forestry areas;Heterogeneous agricultural areas;Agricultural areas
 31;3;23;4;Mountainous;10;Mountainous forest;311;Broad-leaved forest;Forest;Forest and seminatural areas
 31;3;24;;;;;312;Coniferous forest;Forest;Forest and seminatural areas
 31;3;25;;;;;313;Mixed forest;Forest;Forest and seminatural areas

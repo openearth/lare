@@ -813,6 +813,37 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
             nonzero = counts > 0
             means[nonzero] = sums[nonzero] / counts[nonzero]
             result = means[1:]
+
+            # Fallback for tiny polygons: if no raster cell center fell inside
+            # a zone, sample at polygon centroid to avoid widespread NaNs.
+            nan_mask = np.isnan(result)
+            if np.any(nan_mask):
+                # Compute centroids in a projected CRS for geometric correctness.
+                if src.crs and src.crs.is_geographic:
+                    hex_metric = ensure_metric(hex_in_raster_crs, 3035)
+                    centroids = (
+                        gpd.GeoSeries(hex_metric.geometry.centroid, crs=hex_metric.crs)
+                        .to_crs(src.crs)
+                    )
+                else:
+                    centroids = hex_in_raster_crs.geometry.centroid
+                sample_points = [
+                    (pt.x, pt.y)
+                    for pt in centroids[nan_mask]
+                    if pt is not None and not pt.is_empty
+                ]
+                if sample_points:
+                    sampled = np.array([v[0] for v in src.sample(sample_points)], dtype='float64')
+                    if nodata is not None:
+                        if np.issubdtype(sampled.dtype, np.floating) and np.isnan(nodata):
+                            sampled[np.isnan(sampled)] = np.nan
+                        else:
+                            sampled[sampled == nodata] = np.nan
+                    if value_range is not None:
+                        vmin, vmax = value_range
+                        sampled[(sampled < vmin) | (sampled > vmax)] = np.nan
+
+                    result[nan_mask] = sampled
         elif stat == 'majority':
             if classes is None or len(classes) == 0:
                 raise ValueError("'majority' statistic requires non-empty 'classes'.")
@@ -838,6 +869,56 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
 
         hexagons['aggregated_value'] = result
         log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
+        return hexagons
+
+
+def aggregate_raster_pixel_count_to_hexagons(raster_path, hexagons, classes=None):
+    """Count raster pixels per hexagon, optionally restricted to class values."""
+    with rasterio.open(raster_path) as src:
+        if src.crs is None:
+            raise ValueError(f"Raster {raster_path} has no CRS.")
+
+        hex_in_raster_crs = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
+        n_zones = len(hex_in_raster_crs)
+        zone_ids = np.arange(1, n_zones + 1, dtype=np.int32)
+
+        shapes = [
+            (geom, int(zone_id))
+            for zone_id, geom in zip(zone_ids, hex_in_raster_crs.geometry)
+            if geom is not None and not geom.is_empty
+        ]
+        if not shapes:
+            hexagons['aggregated_value'] = 0.0
+            return hexagons
+
+        zone_raster = rasterize(
+            shapes=shapes,
+            out_shape=(src.height, src.width),
+            transform=src.transform,
+            fill=0,
+            dtype='int32',
+            all_touched=False,
+        )
+        raster_values = src.read(1)
+
+        valid_mask = zone_raster > 0
+        nodata = src.nodata
+        if nodata is not None:
+            if np.issubdtype(raster_values.dtype, np.floating) and np.isnan(nodata):
+                valid_mask &= ~np.isnan(raster_values)
+            else:
+                valid_mask &= raster_values != nodata
+
+        if classes is not None:
+            valid_mask &= np.isin(raster_values, np.asarray(classes))
+
+        if not np.any(valid_mask):
+            hexagons['aggregated_value'] = 0.0
+            return hexagons
+
+        zones = zone_raster[valid_mask]
+        counts = np.bincount(zones, minlength=n_zones + 1).astype('float64')
+        hexagons['aggregated_value'] = counts[1:]
         return hexagons
 
 
@@ -887,6 +968,7 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
 
     hf = os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg')
     hexagons = gpd.read_file(hf)
+    _coarsen_hazard_to_hex_scale_inplace(hazardtif, hexagons)
 
     with rasterio.Env():
         try:
@@ -899,3 +981,79 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
         hexagons.to_file(os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg'), driver='GPKG')
     except Exception as e:
         logging.error('aggregate_hazard: save failed: %s', e)   
+
+
+def _coarsen_hazard_to_hex_scale_inplace(hazardtif: str, hexagons: gpd.GeoDataFrame) -> None:
+    """Coarsen hazard raster to approx. hex scale (in-place) when raster is finer.
+
+    The target pixel size is derived from the median hexagon area
+    (target_size ~= sqrt(median_hex_area)) in the raster CRS.
+    """
+    if hexagons is None or hexagons.empty:
+        return
+
+    try:
+        with rasterio.open(hazardtif) as src:
+            if src.crs is None or src.width <= 0 or src.height <= 0:
+                return
+            if src.crs.is_geographic:
+                logging.info(
+                    "aggregate_hazard: skip coarsen for geographic CRS raster %s",
+                    src.crs,
+                )
+                return
+
+            hex_in_src = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
+            # Compute areas in projected units (not degrees).
+            area_gdf = ensure_metric(hex_in_src, 3035) if src.crs.is_geographic else hex_in_src
+            areas = area_gdf.geometry.area
+            areas = areas[np.isfinite(areas) & (areas > 0)]
+            if len(areas) == 0:
+                return
+
+            median_hex_area = float(areas.median())
+            target_size = float(np.sqrt(median_hex_area))
+            current_x = abs(src.transform.a)
+            current_y = abs(src.transform.e)
+            current_size = max(current_x, current_y)
+
+            # Only coarsen when raster is finer than hex scale.
+            if not np.isfinite(target_size) or target_size <= current_size:
+                return
+
+            bounds = src.bounds
+            new_width = max(1, int(np.ceil((bounds.right - bounds.left) / target_size)))
+            new_height = max(1, int(np.ceil((bounds.top - bounds.bottom) / target_size)))
+            if new_width == src.width and new_height == src.height:
+                return
+
+            resampled = src.read(
+                1,
+                out_shape=(new_height, new_width),
+                resampling=Resampling.average,
+            )
+            new_transform = rasterio.transform.from_bounds(
+                bounds.left, bounds.bottom, bounds.right, bounds.top, new_width, new_height
+            )
+
+            profile = src.profile.copy()
+            profile.update(
+                height=new_height,
+                width=new_width,
+                transform=new_transform,
+            )
+
+        tmp_path = f"{hazardtif}.coarsened.tmp.tif"
+        with rasterio.open(tmp_path, "w", **profile) as dst:
+            dst.write(resampled, 1)
+        os.replace(tmp_path, hazardtif)
+        logging.info(
+            "aggregate_hazard: coarsened %s to %dx%d (target_size=%.6f, previous_size=%.6f)",
+            os.path.basename(hazardtif),
+            new_width,
+            new_height,
+            target_size,
+            current_size,
+        )
+    except Exception as exc:
+        logging.warning("aggregate_hazard: could not coarsen hazard raster %s: %s", hazardtif, exc)
