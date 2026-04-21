@@ -155,7 +155,6 @@ def aggregate_kcs_raster_uom(outkcs_tif: str, uomgpkg: str, csv_path: str, kcs: 
     if kcs.lower() == 'agriculture':
         classes = [int(clc) for clc, lac in clc_to_lac.items() if np.isfinite(lac) and int(lac) == 3]
         logger.info('uomkcs agriculture CLC classes selected: %s', classes)
-        print(f'uomkcs agriculture CLC classes selected: {classes}')
     else:
         classes = [int(clc) for clc, lac in clc_to_lac.items() if np.isfinite(lac)]
 
