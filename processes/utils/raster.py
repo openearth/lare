@@ -980,5 +980,3 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
         hexagons.to_file(os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg'), driver='GPKG')
     except Exception as e:
         logging.error('aggregate_hazard: save failed: %s', e)   
-
-
