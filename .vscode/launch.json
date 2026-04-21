@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Attach pygeoapi (Docker)",
-      "type": "python",
+      "type": "debugpy",
       "request": "attach",
       "connect": {
         "host": "localhost",
@@ -11,11 +11,19 @@
       },
       "pathMappings": [
         {
+          // Local workspace root  →  container WORKDIR
+          // Covers:  processes/**, app.yml, pygeoapi-config.yml, etc.
+          // Volume mount in docker-compose: ./processes:/pygeoapi/processes
           "localRoot": "${workspaceFolder}",
           "remoteRoot": "/pygeoapi"
         }
       ],
-      "justMyCode": false
+      // Show frames inside pygeoapi and our own processes (not just user code).
+      "justMyCode": false,
+      // Keep trying to attach for 10 s — useful when the container is still
+      // finishing the openapi generate step before pygeoapi serve starts.
+      "timeout": 10000
     }
   ]
 }
+

@@ -11,5 +11,11 @@ services:
       [
         "/bin/sh",
         "-lc",
-        "/venv/bin/pygeoapi openapi generate /pygeoapi/local.config.yml -f yaml -of /pygeoapi/local.openapi.yml && /venv/bin/python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m gunicorn pygeoapi.flask_app:APP --bind 0.0.0.0:80 --workers 1 --threads 1 --timeout 0 --reload"
+        # 1. Regenerate the OpenAPI document so it reflects any process changes.
+        # 2. Launch pygeoapi under debugpy.
+        #    -Xfrozen_modules=off  lets debugpy set trace hooks in stdlib code.
+        #    --listen              opens the debug port immediately (no blocking).
+        #    No --wait-for-client: the server starts right away; attach your IDE
+        #    whenever you are ready and breakpoints will be hit from that point on.
+        "/venv/bin/pygeoapi openapi generate /pygeoapi/local.config.yml -f yaml -of /pygeoapi/local.openapi.yml && /venv/bin/python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:5678 /venv/bin/pygeoapi serve --flask"
       ]

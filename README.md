@@ -45,25 +45,23 @@ docker compose down
 
 If port `5000` is already in use, change the left side of the port mapping in `docker-compose.yml` (e.g. `5001:80`).
 
-### Debug API requests with breakpoints (Docker + debugpy)
+### Debug API (Docker + debugpy)
 
-Use this when you want breakpoints in `processes/` to hit while calling API endpoints.
-
-1. Start pygeoapi in debug mode:
+1. Start with the debug override (exposes **5678** for the IDE):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
 ```
 
-2. In Cursor/VS Code, run debugger config **Attach pygeoapi (Docker)** (`.vscode/launch.json`).
+2. In Cursor/VS Code, start **Attach pygeoapi (Docker)** (`.vscode/launch.json`).
 
-3. Add breakpoints in process code, for example `processes/handlers/uomkcs.py`.
+3. Set breakpoints under `processes/` and call the API as usual. For async jobs, add `Prefer: respond-async` to the request.
 
-4. Send a request to the process endpoint
+No changes inside process code are required; sync and async (TinyDB job threads) use the same attach.
 
 
-Notes:
-- Stop containers with `docker compose down`.
+
+Async responses are **202** with a **Location** (or **Link**) to the job; poll that URL until the job finishes, then open the results link from the job document.
 
 ## Creating a New Process
 
