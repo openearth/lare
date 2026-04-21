@@ -968,7 +968,6 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
 
     hf = os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg')
     hexagons = gpd.read_file(hf)
-    _coarsen_hazard_to_hex_scale_inplace(hazardtif, hexagons)
 
     with rasterio.Env():
         try:
@@ -983,77 +982,3 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
         logging.error('aggregate_hazard: save failed: %s', e)   
 
 
-def _coarsen_hazard_to_hex_scale_inplace(hazardtif: str, hexagons: gpd.GeoDataFrame) -> None:
-    """Coarsen hazard raster to approx. hex scale (in-place) when raster is finer.
-
-    The target pixel size is derived from the median hexagon area
-    (target_size ~= sqrt(median_hex_area)) in the raster CRS.
-    """
-    if hexagons is None or hexagons.empty:
-        return
-
-    try:
-        with rasterio.open(hazardtif) as src:
-            if src.crs is None or src.width <= 0 or src.height <= 0:
-                return
-            if src.crs.is_geographic:
-                logging.info(
-                    "aggregate_hazard: skip coarsen for geographic CRS raster %s",
-                    src.crs,
-                )
-                return
-
-            hex_in_src = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
-            # Compute areas in projected units (not degrees).
-            area_gdf = ensure_metric(hex_in_src, 3035) if src.crs.is_geographic else hex_in_src
-            areas = area_gdf.geometry.area
-            areas = areas[np.isfinite(areas) & (areas > 0)]
-            if len(areas) == 0:
-                return
-
-            median_hex_area = float(areas.median())
-            target_size = float(np.sqrt(median_hex_area))
-            current_x = abs(src.transform.a)
-            current_y = abs(src.transform.e)
-            current_size = max(current_x, current_y)
-
-            # Only coarsen when raster is finer than hex scale.
-            if not np.isfinite(target_size) or target_size <= current_size:
-                return
-
-            bounds = src.bounds
-            new_width = max(1, int(np.ceil((bounds.right - bounds.left) / target_size)))
-            new_height = max(1, int(np.ceil((bounds.top - bounds.bottom) / target_size)))
-            if new_width == src.width and new_height == src.height:
-                return
-
-            resampled = src.read(
-                1,
-                out_shape=(new_height, new_width),
-                resampling=Resampling.average,
-            )
-            new_transform = rasterio.transform.from_bounds(
-                bounds.left, bounds.bottom, bounds.right, bounds.top, new_width, new_height
-            )
-
-            profile = src.profile.copy()
-            profile.update(
-                height=new_height,
-                width=new_width,
-                transform=new_transform,
-            )
-
-        tmp_path = f"{hazardtif}.coarsened.tmp.tif"
-        with rasterio.open(tmp_path, "w", **profile) as dst:
-            dst.write(resampled, 1)
-        os.replace(tmp_path, hazardtif)
-        logging.info(
-            "aggregate_hazard: coarsened %s to %dx%d (target_size=%.6f, previous_size=%.6f)",
-            os.path.basename(hazardtif),
-            new_width,
-            new_height,
-            target_size,
-            current_size,
-        )
-    except Exception as exc:
-        logging.warning("aggregate_hazard: could not coarsen hazard raster %s: %s", hazardtif, exc)
