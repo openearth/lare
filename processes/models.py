@@ -6,6 +6,10 @@ from typing import Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 
+class ResetInputs(BaseModel):
+    sessionid: str = Field(min_length=1)
+
+
 class CoastalInputs(BaseModel):
     sessionid: str = Field(min_length=1)
 

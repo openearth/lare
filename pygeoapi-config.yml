@@ -69,3 +69,8 @@ resources:
     type: process
     processor:
       name: processes.process_uomkcs.LareUomKcsProcessor
+
+  lare-reset:
+    type: process
+    processor:
+      name: processes.process_reset.LareResetProcessor
