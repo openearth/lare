@@ -49,32 +49,6 @@ def _require_hazard_raster(uom: gpd.GeoDataFrame, hazardlayer: str, sessionid: s
     return hazardtif
 
 
-def test():
-    # Load the GeoPackage files
-    hexagons_gpkg = 'path/to/hexagons.gpkg'
-    lines_gpkg = 'path/to/lines.gpkg'
-
-    hexagons = gpd.read_file(hexagons_gpkg, layer='hexagons')
-    lines = gpd.read_file(lines_gpkg, layer='lines')
-
-    # Perform the spatial join
-    sjoin_result = gpd.sjoin(hexagons, lines, how="inner", op='intersects')
-
-    # Calculate the total length of lines within each hexagon
-    sjoin_result['line_length'] = sjoin_result['geometry'].length
-    hexagon_lengths = sjoin_result.groupby('index_right')['line_length'].sum().reset_index()
-
-    # Rename the columns to match the original hexagon GeoDataFrame
-    hexagon_lengths.rename(columns={'index_right': 'id', 'line_length': 'total_length'}, inplace=True)
-
-    # Merge the total lengths back into the original hexagon GeoDataFrame
-    hexagons = hexagons.merge(hexagon_lengths, on='id', how='left')
-
-    # Save the updated hexagon GeoDataFrame back to a GeoPackage file
-    output_gpkg = 'path/to/output_hexagons.gpkg'
-    hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
-
-    logger.debug("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
 def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
     """Aggregate vector KCS features into UoM hexagons.
 
