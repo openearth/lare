@@ -6,7 +6,7 @@ import logging
 from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from processes.handlers.uomkcs import mainhandler_uomkcs
+from processes.handlers.uomkcs import mainhandler
 from processes.models import UomKcsInputs
 
 LOGGER = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class LareUomKcsProcessor(BaseProcessor):
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = mainhandler_uomkcs(
+            result = mainhandler(
                 inputs.sessionid,
                 inputs.kcs,
                 inputs.hazard,

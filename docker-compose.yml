@@ -12,10 +12,10 @@ services:
       LARE_TMPDIR_HOST: C:/develop/lare/tmp
     command: ["run-with-hot-reload"]
     volumes:
-      - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:ro
+      - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:rw
       - ./processes:/pygeoapi/processes
-      - ./app.yml:/pygeoapi/app.yml:ro
-      - ./data:/pygeoapi/data:ro
+      - ./app.yml:/pygeoapi/app.yml:rw
+      - ./data:/pygeoapi/data:rw
       - ./tmp:/pygeoapi/tmp
 
   # --- Uncomment when LARE processes are ready ---

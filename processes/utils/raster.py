@@ -727,7 +727,8 @@ def reclassify_fast(array, reclass_dict, dtype='int32', nodata_out=None, origina
     return out
 
 
-def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range=None, classes=None):
+def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range=None, classes=None,
+                                   output_column='aggregated_value'):
     """Raster-based zonal stats using vectorized numpy operations.
 
     Rasterizes *hexagons* onto the source raster grid, then computes
@@ -738,18 +739,22 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
     raster_path : str
         Path to a single-band raster file.
     hexagons : GeoDataFrame
-        Hexagon polygons; a new ``aggregated_value`` column is added.
+        Hexagon polygons; ``output_column`` is added or overwritten in place.
     stat : ``'mean'`` | ``'majority'``
         Aggregation statistic.
     value_range : tuple[float, float] | None
         ``(min, max)`` – only pixels inside this range are considered.
     classes : list[int] | None
         Pixel values to keep (required when *stat* = ``'majority'``).
+    output_column : str
+        Name of the result column written to *hexagons*.  Defaults to
+        ``'aggregated_value'``.  If the column already exists it is dropped
+        before writing so that re-runs never produce duplicate column names.
 
     Returns
     -------
     GeoDataFrame
-        *hexagons* with the ``aggregated_value`` column populated.
+        *hexagons* with *output_column* populated.
     """
     log_memory_status(f"Start of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
     with rasterio.open(raster_path) as src:
@@ -766,7 +771,9 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
             if geom is not None and not geom.is_empty
         ]
         if not shapes:
-            hexagons['aggregated_value'] = np.nan
+            if output_column in hexagons.columns:
+                hexagons = hexagons.drop(columns=[output_column])
+            hexagons[output_column] = np.nan
             return hexagons
 
         log_memory_status(f"Before rasterize for {os.path.basename(raster_path)}")
@@ -797,7 +804,9 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
             valid_mask &= np.isin(raster_values, np.asarray(classes))
 
         if not np.any(valid_mask):
-            hexagons['aggregated_value'] = np.nan
+            if output_column in hexagons.columns:
+                hexagons = hexagons.drop(columns=[output_column])
+            hexagons[output_column] = np.nan
             log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)} (no valid data)")
             return hexagons
 
@@ -867,7 +876,9 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
         else:
             raise ValueError(f"Unsupported statistic '{stat}'.")
 
-        hexagons['aggregated_value'] = result
+        if output_column in hexagons.columns:
+            hexagons = hexagons.drop(columns=[output_column])
+        hexagons[output_column] = result
         log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
         return hexagons
 
@@ -934,22 +945,28 @@ def aggregate_coastal(sessionid):
     with rasterio.Env():
         try:
             clctif = os.path.join(cwd, 'clc.tif')
-            hexagons = aggregate_raster_to_hexagons(clctif, hexagons, stat='majority', classes=[1, 2, 3, 4, 5, 6])
-            hexagons.rename(columns={'aggregated_value': 'landcover_aggregated'}, inplace=True)
+            hexagons = aggregate_raster_to_hexagons(
+                clctif, hexagons, stat='majority', classes=[1, 2, 3, 4, 5, 6],
+                output_column='landcover_aggregated',
+            )
         except Exception as e:
             logging.error('aggregate_coastal: landcover aggregation failed: %s', e, exc_info=True)
 
         try:
             demtif = os.path.join(cwd, 'dem.tif')
-            hexagons = aggregate_raster_to_hexagons(demtif, hexagons, stat='mean', value_range=(0, 200))
-            hexagons.rename(columns={'aggregated_value': 'dem_aggregated'}, inplace=True)
+            hexagons = aggregate_raster_to_hexagons(
+                demtif, hexagons, stat='mean', value_range=(0, 200),
+                output_column='dem_aggregated',
+            )
         except Exception as e:
             logging.error('aggregate_coastal: DEM aggregation failed: %s', e, exc_info=True)
 
         try:
             imperviousness_tif = os.path.join(cwd, 'imperviousness.tif')
-            hexagons = aggregate_raster_to_hexagons(imperviousness_tif, hexagons, stat='mean', value_range=(30, 100))
-            hexagons.rename(columns={'aggregated_value': 'imperviousness_aggregated'}, inplace=True)
+            hexagons = aggregate_raster_to_hexagons(
+                imperviousness_tif, hexagons, stat='mean', value_range=(30, 100),
+                output_column='imperviousness_aggregated',
+            )
         except Exception as e:
             logging.error('aggregate_coastal: imperviousness aggregation failed: %s', e, exc_info=True)
 
@@ -971,8 +988,10 @@ def aggregate_hazard(sessionid, hazardtif, archetype):
 
     with rasterio.Env():
         try:
-            hexagons = aggregate_raster_to_hexagons(hazardtif, hexagons, stat='mean')
-            hexagons.rename(columns={'aggregated_value': 'hazard_aggregated'}, inplace=True)
+            hexagons = aggregate_raster_to_hexagons(
+                hazardtif, hexagons, stat='mean',
+                output_column='hazard_aggregated',
+            )
         except Exception as e:
             logging.error('aggregate_hazard: raster aggregation failed: %s', e, exc_info=True)
 

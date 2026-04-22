@@ -18,7 +18,7 @@ from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
 from processes.utils.raster import cut_wcs, compute_slope_aspect_from_dem, reclassify_fast, lare_raster
 from processes.reclass_topo import classify_elevation_raster, create_hazard_rasters
-from processes.utils.geoserver import filtervectorbyvector, load2geoserver, publish_gpkg, createvieweroutput
+from processes.utils.geoserver import filter_vector_by_vector, load2geoserver, publish_gpkg, createvieweroutput
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def handler_coastline(sessionid):
     bufgdf["geometry"] = gdf.buffer(100)
     bufgdf.set_geometry("geometry", inplace=True)
     bufgdf.to_file(os.path.join(sessiondir, 'buffer.gpkg'), driver='GPKG')  
-    coastlinegdf = filtervectorbyvector(geoserver_url, bufgdf, 3035, 'coastline', 3035)
+    coastlinegdf = filter_vector_by_vector(geoserver_url, bufgdf, 3035, 'coastline', 3035)
     coastlinegdf.to_file(os.path.join(sessiondir, 'coastline.gpkg'), driver='GPKG')
     
 

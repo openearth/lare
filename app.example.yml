@@ -1,0 +1,71 @@
+sdi:
+  geoserver:
+    url: "http://<geoserver-host>:8080/geoserver"
+    resturl: "http://<geoserver-host>:8080/geoserver"
+    workspace: "<workspace>"
+    user: "<geoserver-user>"
+    password: "<geoserver-password>"
+  tmp:
+    tmpdir: '/pygeoapi/tmp'
+ows:
+  #base: "https://desirmed.openearth.eu/geoserver/ows"
+  base: "http://<geoserver-host>:8080/geoserver/ows"
+  wfs_nuts:
+    #url: "https://desirmed.openearth.eu/geoserver/ows"
+    url: "http://<geoserver-host>:8080/geoserver/ows"
+    layer: "region:nuts_2021"
+    name_field: "nuts_name"     # adjust to your attribute for NUTS name filter
+
+layers:
+  datasets: {"region:nuts_2021":"nuts_name",
+             "hydro:hybas_eu_lev12_v1c": "hybas_id"
+            }
+  kcs:
+    "socio_economic:pop2020":
+      type: raster
+    "socio_economic:pop2030":
+      type: raster
+    "transport:transport":
+      type: vector
+      aggregation: length
+    "socio_economic:elderly_facilities":
+      type: vector
+      aggregation: count
+    "socio_economic:hospitals":
+      type: vector
+      aggregation: count
+  dem: "topography:dem"
+  transport: "topography:transport"
+  clc: "landuse:U2018_CLC2018_V2020_20u1_cog"
+  eunis: "landuse:eea_r_3035_100m_v3-1_cog"
+  coastline: "coast:coastlines"
+  imperviousness: "imperviousness:imperviousness"
+  population: "socio_economic:pop2020"
+
+hazards:
+  list: ["flood", "drought", "erosion", "heat", "fire"]
+  hazard: {"flood":"Flood mitigation",
+           "drought":"Drought mitigation",
+           "erosion":"Erosion mitigation",
+           "heat": "Heatwave mitigation",
+           "fire": "Fire mitigation"}
+  clc_scores:
+    archetype: "data/landscapearchetype.csv"
+
+hazard_layers:
+  pluvial_RP10: "hazard:Europe_RP10_filled_depth"
+  pluvial_RP20: "hazard:Europe_RP20_filled_depth"
+  pluvial_RP50: "hazard:Europe_RP50_filled_depth"
+  pluvial_RP75: "hazard:Europe_RP75_filled_depth"
+  pluvial_RP100: "hazard:Europe_RP100_filled_depth"
+  pluvial_RP200: "hazard:Europe_RP200_filled_depth"
+  heat: "heat:utci_days_above_46_daily_max"
+
+scores:
+  # Optional: If you also want an archetype code raster from CLC
+  basecsv_path: "data"
+  # columns: clc,score (archetype code)
+  topo_hazards_csv: 'data/topo_hazards.csv'
+
+paths:
+  tmp_base: ./tmp

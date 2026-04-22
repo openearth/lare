@@ -18,7 +18,7 @@ from processes.handlers.session import load_region
 from processes.utils.raster import aggregate_coastal, lare_raster, reclassify_fast
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
-from processes.utils.geoserver import publish_and_respond, filtervectorbyvector
+from processes.utils.geoserver import publish_and_respond, filter_vector_by_vector
 
 
 def _require_raster(path: str | None, label: str, sessionid: str) -> str:
@@ -69,7 +69,7 @@ def _create_coastal_buffer(gdf: gpd.GeoDataFrame, buffer: float = 1000, sessioni
 
     coastlayer = cfg.layer_coastline
 
-    gdfcoastal_zone = filtervectorbyvector(geoserver_url, gdf_buffered, gdf_buffered.crs, coastlayer, 3857)
+    gdfcoastal_zone = filter_vector_by_vector(geoserver_url, gdf_buffered, gdf_buffered.crs, coastlayer, 3857)
     if gdfcoastal_zone is None or gdfcoastal_zone.empty:
         raise ValueError(
             f'No coastal zone features intersect the region for session {sessionid}. '
@@ -125,7 +125,7 @@ def mainhandler_coastal(sessionid, hexagons: gpd.GeoDataFrame = None):
 
     coastlayer = cfg.layer_coastline
 
-    gdfcoastal_zone = filtervectorbyvector(geoserver_url, gdf_buffered, gdf_buffered.crs, coastlayer, 3857)
+    gdfcoastal_zone = filter_vector_by_vector(geoserver_url, gdf_buffered, gdf_buffered.crs, coastlayer, 3857)
     if gdfcoastal_zone is None or gdfcoastal_zone.empty:
         raise ValueError(
             f'No coastal zone features intersect the region for session {sessionid}. '
