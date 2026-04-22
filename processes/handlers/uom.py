@@ -13,7 +13,7 @@ from shapely import STRtree
 from shapely.geometry import Polygon
 
 from processes.config import get_config
-from processes.handlers.session import load_session
+from processes.utils.session import load_session
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric, is_metric_crs
 from processes.utils.geoserver import publish_and_respond, filter_vector_by_vector

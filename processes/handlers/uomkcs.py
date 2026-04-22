@@ -12,7 +12,7 @@ import fiona
 
 # local
 from processes.config import get_config, KcsAggregation, KcsEntry
-from processes.handlers.session import load_session
+from processes.utils.session import load_session
 from processes.utils import load_reclass_table
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
