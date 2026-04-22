@@ -192,6 +192,7 @@ def _aggregate_kcs_raster_uom(
         raise ValueError(f'No valid CLC classes found for KCS {kcs!r}')
 
     raster_stat = entry.aggregation.value
+    output_column = entry.output_column or f'kcs_aggregation_{raster_stat}'
     logger.info('uomkcs: raster aggregation for %r uses stat=%s', kcs, raster_stat)
     raster_stat_alias = 'majority' if raster_stat == KcsAggregation.mode.value else raster_stat
     uom = aggregate_raster_to_hexagons(
@@ -200,10 +201,10 @@ def _aggregate_kcs_raster_uom(
         stat=raster_stat_alias,
         classes=classes,
     )
-    if 'number of pixels' in uom.columns:
-        uom = uom.drop(columns=['number of pixels'])
-    uom.rename(columns={'aggregated_value': 'number of pixels'}, inplace=True)
-    uom['number of pixels'] = uom['number of pixels'].fillna(0)
+    if output_column in uom.columns:
+        uom = uom.drop(columns=[output_column])
+    uom.rename(columns={'aggregated_value': output_column}, inplace=True)
+    uom[output_column] = uom[output_column].fillna(0)
 
     uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
     return uomgpkg

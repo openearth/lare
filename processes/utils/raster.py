@@ -740,7 +740,7 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
         Path to a single-band raster file.
     hexagons : GeoDataFrame
         Hexagon polygons; ``output_column`` is added or overwritten in place.
-    stat : ``'mean'`` | ``'majority'``
+    stat : ``'count'`` | ``'mean'`` | ``'max'`` | ``'min'`` | ``'majority'`` | ``'mode'``
         Aggregation statistic.
     value_range : tuple[float, float] | None
         ``(min, max)`` – only pixels inside this range are considered.
@@ -853,9 +853,26 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
                         sampled[(sampled < vmin) | (sampled > vmax)] = np.nan
 
                     result[nan_mask] = sampled
-        elif stat == 'majority':
+        elif stat == 'count':
+            counts = np.bincount(zones, minlength=n_zones + 1).astype('float64')
+            result = counts[1:]
+        elif stat == 'max':
+            vals_f = vals.astype('float64', copy=False)
+            maxima = np.full(n_zones + 1, -np.inf, dtype='float64')
+            np.maximum.at(maxima, zones, vals_f)
+            counts = np.bincount(zones, minlength=n_zones + 1)
+            maxima[counts == 0] = np.nan
+            result = maxima[1:]
+        elif stat == 'min':
+            vals_f = vals.astype('float64', copy=False)
+            minima = np.full(n_zones + 1, np.inf, dtype='float64')
+            np.minimum.at(minima, zones, vals_f)
+            counts = np.bincount(zones, minlength=n_zones + 1)
+            minima[counts == 0] = np.nan
+            result = minima[1:]
+        elif stat in ('majority', 'mode'):
             if classes is None or len(classes) == 0:
-                raise ValueError("'majority' statistic requires non-empty 'classes'.")
+                raise ValueError("'majority'/'mode' statistic requires non-empty 'classes'.")
 
             classes_arr = np.sort(np.asarray(classes, dtype='int32'))
             vals_i = vals.astype('int32', copy=False)
@@ -880,56 +897,6 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
             hexagons = hexagons.drop(columns=[output_column])
         hexagons[output_column] = result
         log_memory_status(f"End of aggregate_raster_to_hexagons for {os.path.basename(raster_path)}")
-        return hexagons
-
-
-def aggregate_raster_pixel_count_to_hexagons(raster_path, hexagons, classes=None):
-    """Count raster pixels per hexagon, optionally restricted to class values."""
-    with rasterio.open(raster_path) as src:
-        if src.crs is None:
-            raise ValueError(f"Raster {raster_path} has no CRS.")
-
-        hex_in_raster_crs = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
-        n_zones = len(hex_in_raster_crs)
-        zone_ids = np.arange(1, n_zones + 1, dtype=np.int32)
-
-        shapes = [
-            (geom, int(zone_id))
-            for zone_id, geom in zip(zone_ids, hex_in_raster_crs.geometry)
-            if geom is not None and not geom.is_empty
-        ]
-        if not shapes:
-            hexagons['aggregated_value'] = 0.0
-            return hexagons
-
-        zone_raster = rasterize(
-            shapes=shapes,
-            out_shape=(src.height, src.width),
-            transform=src.transform,
-            fill=0,
-            dtype='int32',
-            all_touched=False,
-        )
-        raster_values = src.read(1)
-
-        valid_mask = zone_raster > 0
-        nodata = src.nodata
-        if nodata is not None:
-            if np.issubdtype(raster_values.dtype, np.floating) and np.isnan(nodata):
-                valid_mask &= ~np.isnan(raster_values)
-            else:
-                valid_mask &= raster_values != nodata
-
-        if classes is not None:
-            valid_mask &= np.isin(raster_values, np.asarray(classes))
-
-        if not np.any(valid_mask):
-            hexagons['aggregated_value'] = 0.0
-            return hexagons
-
-        zones = zone_raster[valid_mask]
-        counts = np.bincount(zones, minlength=n_zones + 1).astype('float64')
-        hexagons['aggregated_value'] = counts[1:]
         return hexagons
 
 
