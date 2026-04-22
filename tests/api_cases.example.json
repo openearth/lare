@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Start session",
+    "process": "lare-start",
+    "body": {},
+    "expected_status": 200
+  },
+  {
+    "name": "Create UoM",
+    "process": "lare-uom",
+    "body": {
+      "sessionid": "{{sessionid}}",
+      "uomsize": 100000,
+      "layername": "region:nuts_2021",
+      "id": "Cantabria",
+      "archetype": "coastal"
+    },
+    "expected_status": 200
+  },
+  {
+    "name": "Run coastal workflow",
+    "process": "lare-coastal",
+    "body": {
+      "sessionid": "{{sessionid}}"
+    },
+    "expected_status": 200
+  },
+  {
+    "name": "Run UOM+KCS aggregation",
+    "process": "lare-uomkcs",
+    "body": {
+      "sessionid": "{{sessionid}}",
+      "kcs": "transport",
+      "hazard": "pluvial_RP100",
+      "archetype": "coastal"
+    },
+    "expected_status": 200
+  },
+  {
+    "name": "Reset session",
+    "process": "lare-reset",
+    "body": {
+      "sessionid": "{{sessionid}}"
+    },
+    "expected_status": 200
+  }
+]

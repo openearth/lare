@@ -63,6 +63,31 @@ No changes inside process code are required; sync and async (TinyDB job threads)
 
 Async responses are **202** with a **Location** (or **Link**) to the job; poll that URL until the job finishes, then open the results link from the job document.
 
+### Run saved API test payloads
+
+Instead of manually executing each endpoint in Swagger UI, you can run a local
+test runner that posts your saved JSON payloads in sequence.
+
+1. Create your local cases file (kept out of git):
+
+```bash
+cp tests/api_cases.example.json tests/api_cases.local.json
+```
+
+2. Edit `tests/api_cases.local.json` with your payloads.
+   - Use `{{sessionid}}` in later steps; it is auto-filled from `lare-start`.
+3. Run:
+
+```bash
+python scripts/run_api_tests.py --cases tests/api_cases.local.json
+```
+
+Optional flags:
+- `--base-url http://localhost:5000`
+- `--timeout 180`
+
+The runner exits with code `1` if any case fails (useful for CI later).
+
 ## Creating a New Process
 
 To add a new process such as `process_new.py`:
