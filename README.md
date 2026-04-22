@@ -79,7 +79,7 @@ cp tests/api_cases.example.json tests/api_cases.local.json
 3. Run:
 
 ```bash
-python scripts/run_api_tests.py --cases tests/api_cases.local.json
+python tests/run_api_tests.py --cases tests/api_cases.local.json
 ```
 
 From the repository root, equivalent command:
