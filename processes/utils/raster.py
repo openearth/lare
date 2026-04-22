@@ -740,7 +740,7 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
         Path to a single-band raster file.
     hexagons : GeoDataFrame
         Hexagon polygons; ``output_column`` is added or overwritten in place.
-    stat : ``'mean'`` | ``'majority'``
+    stat : ``'count'`` | ``'mean'`` | ``'max'`` | ``'min'`` | ``'majority'`` | ``'mode'``
         Aggregation statistic.
     value_range : tuple[float, float] | None
         ``(min, max)`` – only pixels inside this range are considered.
@@ -822,9 +822,63 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
             nonzero = counts > 0
             means[nonzero] = sums[nonzero] / counts[nonzero]
             result = means[1:]
-        elif stat == 'majority':
+
+            # Fallback for tiny polygons: if no raster cell center fell inside
+            # a zone, sample at polygon centroid to avoid widespread NaNs.
+            nan_mask = np.isnan(result)
+            if np.any(nan_mask):
+                # Compute centroids in a projected CRS for geometric correctness.
+                if src.crs and src.crs.is_geographic:
+                    hex_metric = ensure_metric(hex_in_raster_crs, 3035)
+                    centroids = (
+                        gpd.GeoSeries(hex_metric.geometry.centroid, crs=hex_metric.crs)
+                        .to_crs(src.crs)
+                    )
+                else:
+                    centroids = hex_in_raster_crs.geometry.centroid
+                sample_points = [
+                    (pt.x, pt.y)
+                    for pt in centroids[nan_mask]
+                    if pt is not None and not pt.is_empty
+                ]
+                if sample_points:
+                    sampled = np.array([v[0] for v in src.sample(sample_points)], dtype='float64')
+                    if nodata is not None:
+                        if np.issubdtype(sampled.dtype, np.floating) and np.isnan(nodata):
+                            sampled[np.isnan(sampled)] = np.nan
+                        else:
+                            sampled[sampled == nodata] = np.nan
+                    if value_range is not None:
+                        vmin, vmax = value_range
+                        sampled[(sampled < vmin) | (sampled > vmax)] = np.nan
+                    if classes is not None:
+                        classes_arr = np.asarray(classes, dtype='int64')
+                        class_match = np.zeros(sampled.shape, dtype=bool)
+                        finite = np.isfinite(sampled)
+                        class_match[finite] = np.isin(sampled[finite].astype('int64'), classes_arr)
+                        sampled[~class_match] = np.nan
+
+                    result[nan_mask] = sampled
+        elif stat == 'count':
+            counts = np.bincount(zones, minlength=n_zones + 1).astype('float64')
+            result = counts[1:]
+        elif stat == 'max':
+            vals_f = vals.astype('float64', copy=False)
+            maxima = np.full(n_zones + 1, -np.inf, dtype='float64')
+            np.maximum.at(maxima, zones, vals_f)
+            counts = np.bincount(zones, minlength=n_zones + 1)
+            maxima[counts == 0] = np.nan
+            result = maxima[1:]
+        elif stat == 'min':
+            vals_f = vals.astype('float64', copy=False)
+            minima = np.full(n_zones + 1, np.inf, dtype='float64')
+            np.minimum.at(minima, zones, vals_f)
+            counts = np.bincount(zones, minlength=n_zones + 1)
+            minima[counts == 0] = np.nan
+            result = minima[1:]
+        elif stat in ('majority', 'mode'):
             if classes is None or len(classes) == 0:
-                raise ValueError("'majority' statistic requires non-empty 'classes'.")
+                raise ValueError("'majority'/'mode' statistic requires non-empty 'classes'.")
 
             classes_arr = np.sort(np.asarray(classes, dtype='int32'))
             vals_i = vals.astype('int32', copy=False)
