@@ -82,6 +82,12 @@ cp tests/api_cases.example.json tests/api_cases.local.json
 python scripts/run_api_tests.py --cases tests/api_cases.local.json
 ```
 
+From the repository root, equivalent command:
+
+```bash
+python lare/tests/run_api_tests.py --mode sync --cases lare/tests/api_cases.local.json
+```
+
 Optional flags:
 - `--base-url http://localhost:5000`
 - `--timeout 180`
