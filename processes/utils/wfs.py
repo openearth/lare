@@ -5,6 +5,7 @@ import io
 import os
 import json
 import requests
+from functools import lru_cache
 from io import BytesIO
 import geopandas as gpd
 import logging
@@ -16,6 +17,63 @@ from owslib.etree import etree as ET
 from processes.config import get_config
 
 logger = logging.getLogger(__name__)
+
+_GEOMETRY_FIELD_FALLBACK = 'geom'
+
+
+@lru_cache(maxsize=128)
+def get_geometry_field(owsurl: str, typename: str) -> str:
+    """Return the geometry attribute name for a WFS layer, cached per process.
+
+    Uses ``WebFeatureService.get_schema`` (owslib) to query the layer
+    schema via DescribeFeatureType.  Falls back to ``'geom'`` when the
+    service is unreachable or the schema cannot be parsed.
+
+    Args:
+        owsurl: Base OWS/WFS endpoint (e.g. ``http://host/geoserver/ows``).
+        typename: Fully-qualified layer name (e.g. ``'socio_economic:hospitals'``).
+
+    Returns:
+        The name of the geometry column (e.g. ``'geom'``, ``'the_geom'``,
+        ``'geometry'``).
+    """
+    try:
+        wfs = WebFeatureService(url=owsurl, version='2.0.0')
+        schema = wfs.get_schema(typename)
+        geom_col = schema.get('geometry_column')
+        if geom_col:
+            logger.debug('get_geometry_field: %s → %s (via get_schema)', typename, geom_col)
+            return geom_col
+    except Exception as e:
+        logger.debug('get_geometry_field: get_schema failed for %s: %s', typename, e)
+
+    # Fallback: parse DescribeFeatureType XML directly.
+    try:
+        params = {
+            'service': 'WFS',
+            'version': '2.0.0',
+            'request': 'DescribeFeatureType',
+            'typeName': typename,
+            'outputFormat': 'application/json',
+        }
+        r = requests.get(owsurl, params=params, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            for prop in data.get('featureTypes', [{}])[0].get('properties', []):
+                if 'gml' in prop.get('type', '').lower() or prop.get('type', '').lower() in (
+                    'point', 'linestring', 'polygon', 'multipolygon', 'multilinestring', 'multipoint',
+                    'geometry', 'geometrycollection',
+                ):
+                    logger.debug('get_geometry_field: %s → %s (via DescribeFeatureType JSON)', typename, prop['name'])
+                    return prop['name']
+    except Exception as e:
+        logger.debug('get_geometry_field: DescribeFeatureType fallback failed for %s: %s', typename, e)
+
+    logger.warning(
+        'get_geometry_field: could not resolve geometry field for %s; falling back to %r',
+        typename, _GEOMETRY_FIELD_FALLBACK,
+    )
+    return _GEOMETRY_FIELD_FALLBACK
 
 
 def _is_numeric_literal(value):

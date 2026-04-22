@@ -45,6 +45,24 @@ docker compose down
 
 If port `5000` is already in use, change the left side of the port mapping in `docker-compose.yml` (e.g. `5001:80`).
 
+### Debug API (Docker + debugpy)
+
+1. Start with the debug override (exposes **5678** for the IDE):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+```
+
+2. In Cursor/VS Code, start **Attach pygeoapi (Docker)** (`.vscode/launch.json`).
+
+3. Set breakpoints under `processes/` and call the API as usual. For async jobs, add `Prefer: respond-async` to the request.
+
+No changes inside process code are required; sync and async (TinyDB job threads) use the same attach.
+
+
+
+Async responses are **202** with a **Location** (or **Link**) to the job; poll that URL until the job finishes, then open the results link from the job document.
+
 ## Creating a New Process
 
 To add a new process such as `process_new.py`:
