@@ -18,16 +18,6 @@ from processes.utils import coerce_reclass_dict_to_array_dtype, tempfile
 from processes.utils.wcs import LS
 from processes.utils.vector import *
 
-# from processes.utils.wcs import *
-# from processes.utils.vector import *
-
-
-#from scipy.misc import imresize  # image resampling
-
-#from osgeo import osr
-#from osgeo import gdalconst
-#import cv2  # dilate band
-
 
 import logging
 try:
@@ -50,10 +40,10 @@ def log_memory_status(stage_name):
 logger = logging.getLogger(__name__)
 
 # Cut a raster layer
-def cut_wcs(xst, yst, xend, yend, layername, owsurl, outfname, crs=4326, all_box=False):
+def cut_wcs(xst, yst, xend, yend, layer_name, owsurl, outfname, crs=4326, all_box=False):
 
     linestr = "LINESTRING ({} {}, {} {})".format(xst, yst, xend, yend)
-    l = LS(linestr, crs, owsurl, layername)
+    l = LS(linestr, crs, owsurl, layer_name)
     l.line()
     l.getraster(outfname, all_box=all_box)
     l = None
@@ -667,7 +657,7 @@ def build_and_save_stack_from_list(
 
     return stack
 
-def lare_raster(gdf,crs=4258,layer='dem',sessionid=None):
+def lare_raster(gdf, crs=4258, layer='dem', session_id=None):
     """clips layer based on the name with the specified crs based on the passed dataframe 
 
     Args:
@@ -683,7 +673,7 @@ def lare_raster(gdf,crs=4258,layer='dem',sessionid=None):
     base = cfg.ows_base
 
     layer, fname = cfg.resolve_layer(layer)
-    outfname = os.path.join(tmpdir, sessionid, fname)
+    outfname = os.path.join(tmpdir, session_id, fname)
 
     gdf = gdf.to_crs(crs)
     xmin, ymin, xmax, ymax = gdf.total_bounds
@@ -906,13 +896,13 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
         return hexagons
 
 
-def aggregate_coastal(sessionid):
+def aggregate_coastal(session_id):
     cfg = get_config()
 
-    cwd = os.path.join(cfg.tmpdir, sessionid)
-    logging.info('aggregate_coastal: session=%s', sessionid)
+    cwd = os.path.join(cfg.tmpdir, session_id)
+    logging.info('aggregate_coastal: session=%s', session_id)
 
-    hf = os.path.join(cwd, f'hexagons_coastal_{sessionid}.gpkg')
+    hf = os.path.join(cwd, f'hexagons_coastal_{session_id}.gpkg')
     hexagons = gpd.read_file(hf)
 
     with rasterio.Env():
@@ -944,31 +934,31 @@ def aggregate_coastal(sessionid):
             logging.error('aggregate_coastal: imperviousness aggregation failed: %s', e, exc_info=True)
 
     try:
-        hexagons.to_file(os.path.join(cwd, f'hexagons_coastal_{sessionid}.gpkg'), driver='GPKG')
+        hexagons.to_file(os.path.join(cwd, f'hexagons_coastal_{session_id}.gpkg'), driver='GPKG')
     except Exception as e:
         logging.error('aggregate_coastal: save failed: %s', e)      
     
     
     
-def aggregate_hazard(sessionid, hazardtif, archetype):
+def aggregate_hazard(session_id, hazard_tif, archetype):
     cfg = get_config()
 
-    cwd = os.path.join(cfg.tmpdir, sessionid)
-    logging.info('aggregate_hazard: session=%s archetype=%s', sessionid, archetype)
+    cwd = os.path.join(cfg.tmpdir, session_id)
+    logging.info('aggregate_hazard: session=%s archetype=%s', session_id, archetype)
 
-    hf = os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg')
+    hf = os.path.join(cwd, f'hexagons_{archetype}_{session_id}.gpkg')
     hexagons = gpd.read_file(hf)
 
     with rasterio.Env():
         try:
             hexagons = aggregate_raster_to_hexagons(
-                hazardtif, hexagons, stat='mean',
+                hazard_tif, hexagons, stat='mean',
                 output_column='hazard_aggregated',
             )
         except Exception as e:
             logging.error('aggregate_hazard: raster aggregation failed: %s', e, exc_info=True)
 
     try:
-        hexagons.to_file(os.path.join(cwd, f'hexagons_{archetype}_{sessionid}.gpkg'), driver='GPKG')
+        hexagons.to_file(os.path.join(cwd, f'hexagons_{archetype}_{session_id}.gpkg'), driver='GPKG')
     except Exception as e:
         logging.error('aggregate_hazard: save failed: %s', e)   

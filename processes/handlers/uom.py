@@ -73,11 +73,11 @@ def hexgrid_within(gdf: gpd.GeoDataFrame, area: float) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(geometry=hexes, crs=gdf.crs)
 
 
-def _require_name_field(cfg, layername: str) -> str:
+def _require_name_field(cfg, layer_name: str) -> str:
     """Return configured name_field for a layer or raise."""
-    name_field = cfg.datasets.get(layername)
+    name_field = cfg.datasets.get(layer_name)
     if not name_field:
-        raise ValueError(f'Layername {layername} not found in config')
+        raise ValueError(f'Layername {layer_name} not found in config')
     return name_field
 
 
@@ -85,7 +85,7 @@ def _require_name_field(cfg, layername: str) -> str:
 _ARCHETYPE_CODES = {'coastal': 1, 'urban': 2, 'rural': 3, 'mountainous': 4}
 
 
-def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str) -> str:
+def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, session_id: str) -> str:
     """Clip the CLC raster to *gdf* and reclassify it into landscape archetype codes.
 
     Uses ``lare_raster`` to clip the CLC layer, then reclassifies pixel values
@@ -97,7 +97,7 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
         gdf (GeoDataFrame): Region geometry used to clip the CLC raster.
         archetype (str): Archetype to retain (``'urban'``, ``'rural'``,
             ``'coastal'``, or ``'mountainous'``).
-        sessionid (str): Current session identifier.
+        session_id (str): Current session identifier.
 
     Returns:
         str: Path to the output raster with only the matching archetype pixels.
@@ -112,9 +112,9 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
     cfg = get_config()
 
     # 1. Clip CLC raster to the GeoDataFrame extent
-    outclc = lare_raster(gdf, 3035, 'clc', sessionid)
+    outclc = lare_raster(gdf, 3035, 'clc', session_id)
     if outclc is None:
-        raise ValueError(f'CLC clip failed for session {sessionid}')
+        raise ValueError(f'CLC clip failed for session {session_id}')
 
     # 2. Load reclassification table: CLC code → landscape archetype code (lac)
     csv_path = os.path.normpath(
@@ -133,7 +133,7 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
     archetype_array = reclassify_fast(clc_array, reclass_dict, dtype='int32',
                                       original_nodata=meta.get('nodata'))
     if archetype_array is None:
-        raise ValueError(f'Reclassification to archetype codes failed for session {sessionid}')
+        raise ValueError(f'Reclassification to archetype codes failed for session {session_id}')
 
     # Keep only the target archetype; set everything else to nodata
     target_code = _ARCHETYPE_CODES[archetype_lower]
@@ -150,11 +150,11 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, sessionid: str
     return out_path
 
 
-def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str) -> gpd.GeoDataFrame:
+def _load_region_from_wfs(cfg, layer_name: str, feature_id: str, name_field: str) -> gpd.GeoDataFrame:
     """Fetch region geometry from WFS and ensure at least one feature exists."""
-    gdf = clipfromwfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layername)
+    gdf = clipfromwfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layer_name)
     if gdf is None or gdf.empty:
-        raise ValueError(f'No features found for {layername} with id={feature_id}')
+        raise ValueError(f'No features found for {layer_name} with id={feature_id}')
     return gdf
 
 
@@ -178,15 +178,15 @@ def _buffer_to_coastal_zone(
     return coastal_zone
 
 
-def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str, archetype: str) -> dict:
+def main_handler(session_id: str, uom_size: int, layer_name: str, id: str, archetype: str) -> dict:
     t0 = perf_counter()
     cfg = get_config()
     t1 = perf_counter()
-    sessiondir = load_session(sessionid)
+    session_dir = load_session(session_id)
     t2 = perf_counter()
-    name_field = _require_name_field(cfg, layername)
+    name_field = _require_name_field(cfg, layer_name)
     t3 = perf_counter()
-    gdf = _load_region_from_wfs(cfg, layername, id, name_field)
+    gdf = _load_region_from_wfs(cfg, layer_name, id, name_field)
     t4 = perf_counter()
     logger.info('Spatial reference: %s', gdf.crs)
 
@@ -196,21 +196,21 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str, arche
         logger.info('Reprojected to EPSG:3035')
         logger.info('perf:lare_uom reproject_seconds=%.3f', perf_counter() - t_reproj_start)
     t_region_write_start = perf_counter()
-    gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
+    gdf.to_file(session_dir / 'region.gpkg', driver='GPKG')
     
     #TODO if archetype is coastal, also save a version in 4326 for use in the coastal processor
     if archetype == 'coastal':
         # clip to coastal zone before saving, to reduce file size and speed up the coastal processor
         gdf = _buffer_to_coastal_zone(gdf, cfg.ows_base, cfg.layer_coastline, buffer_m=1000)
     if archetype in ('rural', 'urban'):
-        _clip_and_classify_clc(gdf, archetype, sessionid)
+        _clip_and_classify_clc(gdf, archetype, session_id)
 
     t_region_write_end = perf_counter()
     logger.debug('Region area: %.1f', gdf.area.sum())
 
-    hexgrid_path = sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg'
+    hexgrid_path = session_dir / f'hexagons_{archetype}_{session_id}.gpkg'
     t_hex_start = perf_counter()
-    hexgdf = hexgrid_within(gdf, uomsize)
+    hexgdf = hexgrid_within(gdf, uom_size)
     t_hex_end = perf_counter()
     t_hex_write_start = perf_counter()
     hexgdf.to_file(hexgrid_path, driver='GPKG')

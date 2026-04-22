@@ -21,7 +21,7 @@ PROCESS_METADATA = {
     ),
     'jobControlOptions': ['sync-execute'],
     'inputs': {
-        'sessionid': {
+        'session_id': {
             'title': 'Session ID',
             'description': 'Unique session identifier from lare-start.',
             'schema': {'type': 'string'},
@@ -36,7 +36,7 @@ PROCESS_METADATA = {
     },
     'example': {
         'inputs': {
-            'sessionid': '17751340029381046',
+            'session_id': '17751340029381046',
         }
     },
 }
@@ -54,7 +54,7 @@ class LareResetProcessor(BaseProcessor):
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = mainhandler_reset(inputs.sessionid)
+            result = mainhandler_reset(inputs.session_id)
         except FileNotFoundError as exc:
             raise ProcessorExecuteError(str(exc)) from exc
         except Exception as exc:
