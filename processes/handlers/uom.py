@@ -16,11 +16,9 @@ from processes.config import get_config
 from processes.handlers.session import load_session
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric, is_metric_crs
-from processes.utils.geoserver import publish_and_respond
-from processes.utils.raster import lare_raster
+from processes.utils.geoserver import publish_and_respond, filter_vector_by_vector
+from processes.utils.raster import lare_raster, reclassify_fast
 from processes.utils import load_reclass_table
-from processes.handlers.coastal  import _create_coastal_buffer
-from processes.handlers.reclass_clc import reclassify_fast
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +158,26 @@ def _load_region_from_wfs(cfg, layername: str, feature_id: str, name_field: str)
     return gdf
 
 
+def _buffer_to_coastal_zone(
+    gdf: gpd.GeoDataFrame,
+    geoserver_url: str,
+    coastline_layer: str,
+    buffer_m: float = 1000,
+) -> gpd.GeoDataFrame:
+    """Return coastal zone features intersecting a buffered region."""
+    gdf_buffered = ensure_metric(gdf.copy(), 3857)
+    gdf_buffered['geometry'] = gdf_buffered.geometry.buffer(buffer_m)
+    coastal_zone = filter_vector_by_vector(
+        geoserver_url, gdf_buffered, gdf_buffered.crs, coastline_layer, 3857
+    )
+    if coastal_zone is None or coastal_zone.empty:
+        raise ValueError(
+            'No coastal zone features intersect the given region. '
+            'This process is intended for coastal areas.'
+        )
+    return coastal_zone
+
+
 def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str, archetype: str) -> dict:
     t0 = perf_counter()
     cfg = get_config()
@@ -181,9 +199,9 @@ def mainhandler_uom(sessionid: str, uomsize: int, layername: str, id: str, arche
     gdf.to_file(sessiondir / 'region.gpkg', driver='GPKG')
     
     #TODO if archetype is coastal, also save a version in 4326 for use in the coastal processor
-    if archetype == 'coastal':  
-        # clip it with the coastal buffer before saving, to reduce file size and speed up processing in the coastal processor
-        gdf = _create_coastal_buffer(gdf, buffer=1000, sessionid=sessionid)
+    if archetype == 'coastal':
+        # clip to coastal zone before saving, to reduce file size and speed up the coastal processor
+        gdf = _buffer_to_coastal_zone(gdf, cfg.ows_base, cfg.layer_coastline, buffer_m=1000)
     if archetype in ('rural', 'urban'):
         _clip_and_classify_clc(gdf, archetype, sessionid)
 
