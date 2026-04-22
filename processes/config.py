@@ -67,20 +67,35 @@ class KcsType(str, Enum):
 class KcsAggregation(str, Enum):
     length = "length"        # sum of line length per UoM (metres)
     count = "count"          # count of intersecting features
+    mean = "mean"            # mean raster value per UoM
+    max = "max"              # max raster value per UoM
+    min = "min"              # min raster value per UoM
+    mode = "mode"            # majority class per UoM
 
 
 class KcsEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
     type: KcsType
-    aggregation: Optional[KcsAggregation] = None
+    aggregation: KcsAggregation
     output_column: Optional[str] = None
     style: str = "hazard"
 
     @field_validator("aggregation", mode="after")
     @classmethod
-    def _aggregation_required_for_vector(cls, v, info):
-        if info.data.get("type") == KcsType.vector and v is None:
-            raise ValueError("aggregation is required when type is 'vector'")
+    def _validate_kcs_aggregation(cls, v, info):
+        kcs_type = info.data.get("type")
+        if kcs_type == KcsType.vector:
+            if v not in (KcsAggregation.length, KcsAggregation.count):
+                raise ValueError("vector aggregation must be 'length' or 'count'")
+        if kcs_type == KcsType.raster:
+            if v not in (
+                KcsAggregation.count,
+                KcsAggregation.mean,
+                KcsAggregation.max,
+                KcsAggregation.min,
+                KcsAggregation.mode,
+            ):
+                raise ValueError("raster aggregation must be one of: count, mean, max, min, mode")
         return v
 
 

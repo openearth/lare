@@ -20,7 +20,7 @@ from processes.utils.geoserver import filter_vector_by_vector, createvieweroutpu
 from processes.utils.raster import (
     lare_raster,
     aggregate_hazard,
-    aggregate_raster_pixel_count_to_hexagons,
+    aggregate_raster_to_hexagons,
 )
 logger = logging.getLogger(__name__)
 
@@ -156,8 +156,14 @@ def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
     return uom
 
 
-def aggregate_kcs_raster_uom(outkcs_tif: str, uomgpkg: str, csv_path: str, kcs: str) -> str:
-    """Aggregate raster KCS to UoM as number of selected pixels per hexagon."""
+def _aggregate_kcs_raster_uom(
+    outkcs_tif: str,
+    uomgpkg: str,
+    csv_path: str,
+    kcs: str,
+    entry: KcsEntry,
+) -> str:
+    """Aggregate raster KCS to UoM using the configured raster statistic."""
     if not outkcs_tif or not os.path.isfile(outkcs_tif):
         raise FileNotFoundError(f'Raster KCS file not found: {outkcs_tif}')
 
@@ -185,7 +191,15 @@ def aggregate_kcs_raster_uom(outkcs_tif: str, uomgpkg: str, csv_path: str, kcs: 
     if not classes:
         raise ValueError(f'No valid CLC classes found for KCS {kcs!r}')
 
-    uom = aggregate_raster_pixel_count_to_hexagons(outkcs_tif, uom, classes=classes)
+    raster_stat = entry.aggregation.value
+    logger.info('uomkcs: raster aggregation for %r uses stat=%s', kcs, raster_stat)
+    raster_stat_alias = 'majority' if raster_stat == KcsAggregation.mode.value else raster_stat
+    uom = aggregate_raster_to_hexagons(
+        outkcs_tif,
+        uom,
+        stat=raster_stat_alias,
+        classes=classes,
+    )
     if 'number of pixels' in uom.columns:
         uom = uom.drop(columns=['number of pixels'])
     uom.rename(columns={'aggregated_value': 'number of pixels'}, inplace=True)
@@ -220,7 +234,7 @@ def mainhandler(sessionid, kcs, hazard, archetype):
         csv_path = os.path.normpath(
             os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores['archetype'])
         )
-        aggregate_kcs_raster_uom(outkcs, uom_gpkg, csv_path, kcs)
+        _aggregate_kcs_raster_uom(outkcs, uom_gpkg, csv_path, kcs, entry)
 
     elif entry.type.value == 'vector':
         layer_names = fiona.listlayers(uom_gpkg)

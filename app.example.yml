@@ -23,8 +23,10 @@ layers:
   kcs:
     "socio_economic:pop2020":
       type: raster
+      aggregation: mean
     "socio_economic:pop2030":
       type: raster
+      aggregation: count
     "transport:transport":
       type: vector
       aggregation: length
