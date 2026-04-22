@@ -21,6 +21,7 @@ from geoserver.catalog import FailedRequestError
 
 # local packages
 from processes.config import get_config
+from processes.utils.wfs import get_geometry_field
 
 import logging
 LOGGER= logging.getLogger("PYWPS")
@@ -589,6 +590,11 @@ def republish_layer(store='hexagons_17727241142485569',
     try:
         gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
         gs.ensure_workspace(workspace)
+        # Remove any stale layer/featureType from a previous run so the
+        # subsequent publish is always idempotent.  Both helpers treat 404
+        # as success, so a first-time run is unaffected.
+        gs.delete_layer(workspace, layer_name)
+        gs.delete_featuretype(workspace, store, layer_name)
         gs.publish_featuretype(
             ws=workspace,
             store=store,
@@ -845,13 +851,14 @@ def filter_vector_by_vector(geoserver_url, filtergdf, filter_crs, kcslayer, kcs_
         logging.error('filter_vector_by_vector: WKT preparation failed: %s', e)
         return None
 
+    geom_field = get_geometry_field(geoserver_url, kcslayer)
     kcs_params = {
         'service': 'WFS',
         'version': '2.0.0',
         'request': 'GetFeature',
         'typeNames': kcslayer,
         'outputFormat': 'application/json',
-        'CQL_FILTER': f"Intersects(geom, SRID={kcs_crs};{wkt_representation})"
+        'CQL_FILTER': f"Intersects({geom_field}, SRID={kcs_crs};{wkt_representation})",
     }
 
     try:
