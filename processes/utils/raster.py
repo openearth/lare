@@ -851,6 +851,12 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
                     if value_range is not None:
                         vmin, vmax = value_range
                         sampled[(sampled < vmin) | (sampled > vmax)] = np.nan
+                    if classes is not None:
+                        classes_arr = np.asarray(classes, dtype='int64')
+                        class_match = np.zeros(sampled.shape, dtype=bool)
+                        finite = np.isfinite(sampled)
+                        class_match[finite] = np.isin(sampled[finite].astype('int64'), classes_arr)
+                        sampled[~class_match] = np.nan
 
                     result[nan_mask] = sampled
         elif stat == 'count':
