@@ -22,8 +22,8 @@
     "process": "lare-uomkcs",
     "body": {
       "session_id": "{{sessionid}}",
-      "kcs": "transport",
-      "hazard": "pluvial_RP200",
+      "kcs": "agriculture",
+      "hazard": "salinity",
       "archetype": "coastal"
     },
     "expected_status": 200

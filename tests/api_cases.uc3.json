@@ -13,7 +13,7 @@
       "uom_size": 100000,
       "layer_name": "region:nuts_2021",
       "id": "Cantabria",
-      "archetype": "coastal"
+      "archetype": "rural"
     },
     "expected_status": 200
   },
@@ -22,9 +22,9 @@
     "process": "lare-uomkcs",
     "body": {
       "session_id": "{{sessionid}}",
-      "kcs": "transport",
-      "hazard": "pluvial_RP200",
-      "archetype": "coastal"
+      "kcs": "agriculture",
+      "hazard": "drought",
+      "archetype": "rural"
     },
     "expected_status": 200
   }

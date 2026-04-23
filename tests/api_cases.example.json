@@ -9,9 +9,9 @@
     "name": "Create UoM",
     "process": "lare-uom",
     "body": {
-      "sessionid": "{{sessionid}}",
-      "uomsize": 100000,
-      "layername": "region:nuts_2021",
+      "session_id": "{{sessionid}}",
+      "uom_size": 100000,
+      "layer_name": "region:nuts_2021",
       "id": "Cantabria",
       "archetype": "coastal"
     },
@@ -21,7 +21,7 @@
     "name": "Run coastal workflow",
     "process": "lare-coastal",
     "body": {
-      "sessionid": "{{sessionid}}"
+      "session_id": "{{sessionid}}"
     },
     "expected_status": 200
   },
@@ -29,7 +29,7 @@
     "name": "Run UOM+KCS aggregation",
     "process": "lare-uomkcs",
     "body": {
-      "sessionid": "{{sessionid}}",
+      "session_id": "{{sessionid}}",
       "kcs": "transport",
       "hazard": "pluvial_RP100",
       "archetype": "coastal"
@@ -40,7 +40,7 @@
     "name": "Reset session",
     "process": "lare-reset",
     "body": {
-      "sessionid": "{{sessionid}}"
+      "session_id": "{{sessionid}}"
     },
     "expected_status": 200
   }

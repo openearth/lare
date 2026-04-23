@@ -51,11 +51,13 @@ def _replace_placeholders(value: Any, context: dict[str, Any]) -> Any:
     return value
 
 
-def _extract_sessionid(response_json: Any) -> str | None:
+def _extract_session_id(response_json: Any) -> str | None:
     if not isinstance(response_json, dict):
         return None
 
-    # Common pygeoapi sync shape from these processors: {"sessionid": "..."}
+    # Support both legacy and current session key names.
+    if "session_id" in response_json and response_json["session_id"]:
+        return str(response_json["session_id"])
     if "sessionid" in response_json and response_json["sessionid"]:
         return str(response_json["sessionid"])
     return None
@@ -158,9 +160,11 @@ def main() -> int:
             print(f"       {result.detail}")
 
         if response_json:
-            sessionid = _extract_sessionid(response_json)
-            if sessionid:
-                context["sessionid"] = sessionid
+            session_id = _extract_session_id(response_json)
+            if session_id:
+                # Keep both placeholders working: {{session_id}} and {{sessionid}}.
+                context["session_id"] = session_id
+                context["sessionid"] = session_id
 
     passed = sum(1 for r in results if r.ok)
     failed = len(results) - passed
