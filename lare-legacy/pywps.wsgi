@@ -49,7 +49,6 @@ from processes.wps_lare_kcs import WpsLareKCS
 from processes.wps_lare_region import WpsLareRegion
 from processes.wps_lare_start import WpsStart
 from processes.wps_lare_coastal import WpsLareCoastal
-from processes.wps_lare_basin import WpsLareBasin   
 
 # LARE processes
 processes = [
@@ -59,8 +58,7 @@ processes = [
     WpsLareUoM(),
     WpsLareKCS(),
     WpsLareRegion(),
-    WpsLareCoastal(),
-    WpsLareBasin()
+    WpsLareCoastal()
     ]
 
 # Description used in template
