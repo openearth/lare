@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ResetInputs(BaseModel):
-    session_id: str = Field(min_length=1)
+    sessionid: str = Field(min_length=1)
 
 
 class CoastalInputs(BaseModel):
-    session_id: str = Field(min_length=1)
+    sessionid: str = Field(min_length=1)
 
 
 class HazardInputs(BaseModel):
@@ -20,15 +20,15 @@ class HazardInputs(BaseModel):
 
 
 class UomInputs(BaseModel):
-    session_id: str = Field(min_length=1)
-    uom_size: int
-    layer_name: str = Field(min_length=1)
+    sessionid: str = Field(min_length=1)
+    uomsize: int
+    layername: str = Field(min_length=1)
     id: str = Field(min_length=1)
     archetype: Literal['coastal', 'urban', 'rural']
 
 
 class UomKcsInputs(BaseModel):
-    session_id: str = Field(min_length=1)
+    sessionid: str = Field(min_length=1)
     kcs: str = Field(min_length=1)
     hazard: str = Field(min_length=1)
     archetype: str = Field(min_length=1)

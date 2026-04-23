@@ -6,20 +6,20 @@ import logging
 from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from processes.handlers.reset import mainhandler_reset
-from processes.models import ResetInputs
+from processes.handlers.coastal import mainhandler_coastal
+from processes.models import CoastalInputs
 
 LOGGER = logging.getLogger(__name__)
 
 PROCESS_METADATA = {
     'version': '1.0.0',
-    'id': 'lare-reset',
-    'title': 'Reset LARE session',
+    'id': 'lare-coastal',
+    'title': 'Coastal archetype analysis',
     'description': (
-        'Removes the temporary working directory for a given session, '
-        'allowing the user to start over.'
+        'Identifies coastal zones, clips raster layers (CLC, DEM, imperviousness), '
+        'aggregates data to the hexagonal grid, and publishes the result.'
     ),
-    'jobControlOptions': ['sync-execute'],
+    'jobControlOptions': ['sync-execute', 'async-execute'],
     'inputs': {
         'sessionid': {
             'title': 'Session ID',
@@ -30,11 +30,11 @@ PROCESS_METADATA = {
     },
     'outputs': {
         'result': {
-            'title': 'Reset result',
+            'title': 'Coastal analysis result',
             'schema': {'type': 'object', 'contentMediaType': 'application/json'},
         },
     },
-    'example': {
+        'example': {
         'inputs': {
             'sessionid': '17751340029381046',
         }
@@ -42,25 +42,22 @@ PROCESS_METADATA = {
 }
 
 
-class LareResetProcessor(BaseProcessor):
+class LareCoastalProcessor(BaseProcessor):
 
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
         try:
-            inputs = ResetInputs.model_validate(data)
+            inputs = CoastalInputs.model_validate(data)
         except ValidationError as exc:
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = mainhandler_reset(inputs.sessionid)
-        except FileNotFoundError as exc:
-            raise ProcessorExecuteError(str(exc)) from exc
+            result = mainhandler_coastal(inputs.sessionid)
         except Exception as exc:
             raise ProcessorExecuteError(str(exc)) from exc
-
         return 'application/json', result
 
     def __repr__(self):
-        return '<LareResetProcessor>'
+        return '<LareCoastalProcessor>'

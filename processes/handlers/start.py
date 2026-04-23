@@ -10,12 +10,12 @@ from processes.config import get_config
 logger = logging.getLogger(__name__)
 
 
-def main_handler() -> dict:
+def mainhandler() -> dict:
     cfg = get_config()
 
-    session_id = str(time.time()).replace('.', '')
-    session_dir = Path(cfg.tmpdir) / session_id
-    session_dir.mkdir(parents=True, exist_ok=True)
-    logger.info('Session directory created: %s', session_dir)
+    sessionid = str(time.time()).replace('.', '')
+    sessiondir = Path(cfg.tmpdir) / sessionid
+    sessiondir.mkdir(parents=True, exist_ok=True)
+    logger.info('Session directory created: %s', sessiondir)
 
-    return {"session_id": session_id}
+    return {"sessionid": sessionid}

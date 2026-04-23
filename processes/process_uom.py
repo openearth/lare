@@ -6,7 +6,7 @@ import logging
 from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from processes.handlers.uom import main_handler
+from processes.handlers.uom import mainhandler_uom
 from processes.models import UomInputs
 
 LOGGER = logging.getLogger(__name__)
@@ -21,21 +21,21 @@ PROCESS_METADATA = {
     ),
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'inputs': {
-        'session_id': {
+        'sessionid': {
             'title': 'Session ID',
             'description': 'Unique session identifier from lare-start.',
             'schema': {'type': 'string'},
             'minOccurs': 1,
         },
-        'uom_size': {
+        'uomsize': {
             'title': 'Hexagon size (m²)',
             'description': 'Target area of each hexagon in square metres.',
             'schema': {'type': 'integer'},
             'minOccurs': 1,
         },
-        'layer_name': {
+        'layername': {
             'title': 'Layer name',
-            'description': 'Full workspace:layer_name from the data service.',
+            'description': 'Full workspace:layername from the data service.',
             'schema': {'type': 'string'},
             'minOccurs': 1,
         },
@@ -60,9 +60,9 @@ PROCESS_METADATA = {
     },
     'example': {
         'inputs': {
-            'session_id': '17751340029381046',
-            'uom_size': 100000,
-            'layer_name': 'region:nuts_2021',
+            'sessionid': '17751340029381046',
+            'uomsize': 100000,
+            'layername': 'region:nuts_2021',
             'id': 'Cantabria',
             'archetype': 'coastal',
         }
@@ -82,10 +82,10 @@ class LareUomProcessor(BaseProcessor):
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = main_handler(
-                inputs.session_id,
-                inputs.uom_size,
-                inputs.layer_name,
+            result = mainhandler_uom(
+                inputs.sessionid,
+                inputs.uomsize,
+                inputs.layername,
                 inputs.id,
                 inputs.archetype,
             )

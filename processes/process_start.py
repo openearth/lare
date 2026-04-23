@@ -5,7 +5,7 @@ import logging
 
 from pygeoapi.process.base import BaseProcessor
 
-from processes.handlers.start import main_handler
+from processes.handlers.start import mainhandler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class LareStartProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        result = main_handler()
+        result = mainhandler()
         return 'application/json', result
 
     def __repr__(self):

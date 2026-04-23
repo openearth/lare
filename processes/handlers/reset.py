@@ -10,21 +10,21 @@ from processes.config import get_config
 logger = logging.getLogger(__name__)
 
 
-def mainhandler_reset(session_id: str) -> dict:
+def mainhandler_reset(sessionid: str) -> dict:
     cfg = get_config()
 
-    session_dir = Path(cfg.tmpdir) / session_id
+    sessiondir = Path(cfg.tmpdir) / sessionid
 
-    if not session_dir.exists():
+    if not sessiondir.exists():
         raise FileNotFoundError(
-            f'Session directory for {session_id!r} does not exist.'
+            f'Session directory for {sessionid!r} does not exist.'
         )
 
     # Guard against path traversal – resolved path must be inside tmpdir
-    if not session_dir.resolve().is_relative_to(Path(cfg.tmpdir).resolve()):
+    if not sessiondir.resolve().is_relative_to(Path(cfg.tmpdir).resolve()):
         raise ValueError('Invalid session ID.')
 
-    shutil.rmtree(session_dir)
-    logger.info('Session directory removed: %s', session_dir)
+    shutil.rmtree(sessiondir)
+    logger.info('Session directory removed: %s', sessiondir)
 
-    return {"session_id": session_id, "status": "removed"}
+    return {"sessionid": sessionid, "status": "removed"}
