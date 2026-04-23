@@ -12,7 +12,7 @@ import fiona
 
 # local
 from processes.config import get_config, KcsAggregation, KcsEntry
-from processes.handlers.session import load_session
+from processes.utils.session import load_session
 from processes.utils import load_reclass_table
 from processes.utils.wfs import clipfromwfs_cql
 from processes.utils.vector import ensure_metric
@@ -25,9 +25,9 @@ from processes.utils.raster import (
 logger = logging.getLogger(__name__)
 
 
-def _require_uom_gpkg(sessiondir, sessionid: str, archetype: str) -> str:
+def _require_uom_gpkg(session_dir, session_id: str, archetype: str) -> str:
     """Build and validate the expected UoM GeoPackage path."""
-    uom_gpkg = str(sessiondir / f'hexagons_{archetype}_{sessionid}.gpkg')
+    uom_gpkg = str(session_dir / f'hexagons_{archetype}_{session_id}.gpkg')
     if not os.path.isfile(uom_gpkg):
         raise FileNotFoundError(f'Hexagon file not found: {uom_gpkg}')
     return uom_gpkg
@@ -41,41 +41,15 @@ def _resolve_kcs_layer(cfg, kcs: str) -> tuple[str, KcsEntry]:
     raise ValueError(f'KCS {kcs!r} not found in config layers.kcs')
 
 
-def _require_hazard_raster(uom: gpd.GeoDataFrame, hazardlayer: str, sessionid: str) -> str:
+def _require_hazard_raster(uom: gpd.GeoDataFrame, hazard_layer: str, session_id: str) -> str:
     """Clip and validate hazard raster output path."""
-    hazardtif = lare_raster(uom, 4326, hazardlayer, sessionid)
-    if not hazardtif or not os.path.isfile(hazardtif):
-        raise RuntimeError(f'Hazard raster not produced for layer {hazardlayer!r}')
-    return hazardtif
+    hazard_tif = lare_raster(uom, 4326, hazard_layer, session_id)
+    if not hazard_tif or not os.path.isfile(hazard_tif):
+        raise RuntimeError(f'Hazard raster not produced for layer {hazard_layer!r}')
+    return hazard_tif
 
 
-def test():
-    # Load the GeoPackage files
-    hexagons_gpkg = 'path/to/hexagons.gpkg'
-    lines_gpkg = 'path/to/lines.gpkg'
-
-    hexagons = gpd.read_file(hexagons_gpkg, layer='hexagons')
-    lines = gpd.read_file(lines_gpkg, layer='lines')
-
-    # Perform the spatial join
-    sjoin_result = gpd.sjoin(hexagons, lines, how="inner", op='intersects')
-
-    # Calculate the total length of lines within each hexagon
-    sjoin_result['line_length'] = sjoin_result['geometry'].length
-    hexagon_lengths = sjoin_result.groupby('index_right')['line_length'].sum().reset_index()
-
-    # Rename the columns to match the original hexagon GeoDataFrame
-    hexagon_lengths.rename(columns={'index_right': 'id', 'line_length': 'total_length'}, inplace=True)
-
-    # Merge the total lengths back into the original hexagon GeoDataFrame
-    hexagons = hexagons.merge(hexagon_lengths, on='id', how='left')
-
-    # Save the updated hexagon GeoDataFrame back to a GeoPackage file
-    output_gpkg = 'path/to/output_hexagons.gpkg'
-    hexagons.to_file(output_gpkg, layer='hexagons', driver='GPKG')
-
-    logger.debug("Updated hexagon GeoPackage file saved to: %s", output_gpkg)
-def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
+def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, session_id=None):
     """Aggregate vector KCS features into UoM hexagons.
 
     Dispatches to the correct aggregation strategy based on ``entry.aggregation``:
@@ -88,7 +62,7 @@ def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
         kcs_gdf: KCS features as a GeoDataFrame (vector).
         uom_gdf: UoM features as a GeoDataFrame to aggregate into.
         entry: :class:`~processes.config.KcsEntry` carrying type and aggregation kind.
-        sessionid: Optional session identifier for logging/context.
+        session_id: Optional session identifier for logging/context.
 
     Returns:
         gpd.GeoDataFrame: Updated UoM GeoDataFrame with an aggregated output column.
@@ -158,7 +132,7 @@ def _aggregate_kcs_uom(kcs_gdf, uom_gdf, entry: KcsEntry, sessionid=None):
 
 def _aggregate_kcs_raster_uom(
     outkcs_tif: str,
-    uomgpkg: str,
+    uom_gpkg: str,
     csv_path: str,
     kcs: str,
     entry: KcsEntry,
@@ -167,12 +141,12 @@ def _aggregate_kcs_raster_uom(
     if not outkcs_tif or not os.path.isfile(outkcs_tif):
         raise FileNotFoundError(f'Raster KCS file not found: {outkcs_tif}')
 
-    layer_names = fiona.listlayers(uomgpkg)
+    layer_names = fiona.listlayers(uom_gpkg)
     if not layer_names:
-        raise RuntimeError(f"No layers found in {uomgpkg}")
+        raise RuntimeError(f"No layers found in {uom_gpkg}")
     uom_layer = layer_names[0]
 
-    uom = gpd.read_file(uomgpkg, layer=uom_layer, engine='pyogrio')
+    uom = gpd.read_file(uom_gpkg, layer=uom_layer, engine='pyogrio')
     if uom.empty:
         raise RuntimeError("UoM dataset is empty")
 
@@ -206,36 +180,36 @@ def _aggregate_kcs_raster_uom(
     uom.rename(columns={'aggregated_value': output_column}, inplace=True)
     uom[output_column] = uom[output_column].fillna(0)
 
-    uom.to_file(uomgpkg, layer=uom_layer, driver='GPKG', mode='w')
-    return uomgpkg
+    uom.to_file(uom_gpkg, layer=uom_layer, driver='GPKG', mode='w')
+    return uom_gpkg
 
 
 
-def mainhandler(sessionid, kcs, hazard, archetype):
+def main_handler(session_id, kcs, hazard, archetype):
     cfg = get_config()
     geoserver_url = cfg.ows_base
-    wmsurl = cfg.geoserver.url
+    wms_url = cfg.geoserver.url
 
-    sessiondir = load_session(sessionid)
-    uom_gpkg = _require_uom_gpkg(sessiondir, sessionid, archetype)
+    session_dir = load_session(session_id)
+    uom_gpkg = _require_uom_gpkg(session_dir, session_id, archetype)
 
     #TODO: add the correct hazard layer to the config. E.g drought.
-    hazardlayer = cfg.hazard_layers[hazard]
-    logger.info('uomkcs: hazard %r -> layer %s', hazard, hazardlayer)
+    hazard_layer = cfg.hazard_layers[hazard]
+    logger.info('uomkcs: hazard %r -> layer %s', hazard, hazard_layer)
 
     uom = gpd.read_file(uom_gpkg)
     #In this step we are clipping the hazard layer to the UoM.
-    hazardtif = _require_hazard_raster(uom, hazardlayer, sessionid)
+    hazard_tif = _require_hazard_raster(uom, hazard_layer, session_id)
     #In this step we are reading from the config the KCS layer and its entry.
-    kcslayer, entry = _resolve_kcs_layer(cfg, kcs)
+    kcs_layer, entry = _resolve_kcs_layer(cfg, kcs)
 
     if entry.type.value == 'raster':
-        outkcs = lare_raster(uom, uom.crs, kcslayer, sessionid=sessionid)
-        logger.debug('uomkcs: KCS %r clipped as raster: %s', kcs, outkcs)
+        out_kcs = lare_raster(uom, uom.crs, kcs_layer, session_id=session_id)
+        logger.debug('uomkcs: KCS %r clipped as raster: %s', kcs, out_kcs)
         csv_path = os.path.normpath(
             os.path.join(os.path.dirname(__file__), '..', '..', cfg.hazard_clc_scores['archetype'])
         )
-        _aggregate_kcs_raster_uom(outkcs, uom_gpkg, csv_path, kcs, entry)
+        _aggregate_kcs_raster_uom(out_kcs, uom_gpkg, csv_path, kcs, entry)
 
     elif entry.type.value == 'vector':
         layer_names = fiona.listlayers(uom_gpkg)
@@ -244,18 +218,18 @@ def mainhandler(sessionid, kcs, hazard, archetype):
         uom_layer = layer_names[0]
 
         filter_gdf = gpd.GeoDataFrame(geometry=[uom.geometry.unary_union], crs=uom.crs)
-        kcs_gdf = filter_vector_by_vector(geoserver_url, filter_gdf, filter_gdf.crs, kcslayer, 4326)
+        kcs_gdf = filter_vector_by_vector(geoserver_url, filter_gdf, filter_gdf.crs, kcs_layer, 4326)
         if kcs_gdf is not None and not kcs_gdf.empty:
             logger.info('uomkcs: KCS %r clipped, %d features (aggregation: %s)', kcs, len(kcs_gdf), entry.aggregation)
-            uom = _aggregate_kcs_uom(kcs_gdf, uom, entry, sessionid=sessionid)
+            uom = _aggregate_kcs_uom(kcs_gdf, uom, entry, session_id=session_id)
             uom.to_file(uom_gpkg, layer=uom_layer, driver='GPKG', mode='w')
         else:
             logger.warning('uomkcs: no features returned for KCS %r', kcs)
     else:
         raise ValueError(f'Unsupported KCS type {entry.type!r} for {kcs!r}')
 
-    aggregate_hazard(sessionid, hazardtif, archetype)
+    aggregate_hazard(session_id, hazard_tif, archetype)
 
-    layer_name = f'hexagons_{archetype}_{sessionid}_{kcs}'
-    republish_layer(f'hexagons_{archetype}_{sessionid}', workspace='tmp', style_name=entry.style, layer_name=layer_name)
-    return createvieweroutput([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wmsurl)
+    layer_name = f'hexagons_{archetype}_{session_id}_{kcs}'
+    republish_layer(f'hexagons_{archetype}_{session_id}', workspace='tmp', style_name=entry.style, layer_name=layer_name)
+    return createvieweroutput([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wms_url)

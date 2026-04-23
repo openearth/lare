@@ -59,12 +59,6 @@ resources:
     processor:
       name: processes.process_uom.LareUomProcessor
 
-  lare-coastal:
-    type: process
-    processor:
-      name: processes.process_coastal.LareCoastalProcessor
-
-
   lare-uomkcs:
     type: process
     processor:

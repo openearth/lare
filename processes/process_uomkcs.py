@@ -6,7 +6,7 @@ import logging
 from pydantic import ValidationError
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from processes.handlers.uomkcs import mainhandler
+from processes.handlers.uomkcs import main_handler
 from processes.models import UomKcsInputs
 
 LOGGER = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ PROCESS_METADATA = {
     ),
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'inputs': {
-        'sessionid': {
+        'session_id': {
             'title': 'Session ID',
             'description': 'Unique session identifier from lare-start.',
             'schema': {'type': 'string'},
@@ -54,7 +54,7 @@ PROCESS_METADATA = {
     },
     'example': {
         'inputs': {
-            'sessionid': '17751340029381046',
+            'session_id': '17751340029381046',
             'kcs': 'transport',
             'hazard': 'pluvial_RP100',
             'archetype': 'coastal',
@@ -75,8 +75,8 @@ class LareUomKcsProcessor(BaseProcessor):
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = mainhandler(
-                inputs.sessionid,
+            result = main_handler(
+                inputs.session_id,
                 inputs.kcs,
                 inputs.hazard,
                 inputs.archetype,

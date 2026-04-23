@@ -102,7 +102,7 @@ To add a new process such as `process_new.py`:
    Add a Pydantic model that defines and validates the request payload for the new process.
 
 2. Implement the workflow in `processes/handlers/{new}.py`.
-   Put the actual process logic in a handler function such as `mainhandler`. Keep file I/O, geospatial work, and publishing logic here.
+   Put the actual process logic in a handler function such as `main_handler`. Keep file I/O, geospatial work, and publishing logic here.
 
 3. Create the pygeoapi processor in `processes/process_{new}.py`.
    Add a `PROCESS_METADATA` dictionary and a processor class such as `LareNewProcessor`.

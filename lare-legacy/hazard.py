@@ -124,7 +124,7 @@ def handler_clc(gdf,hazard=None):
     Args:
         gdf (geodatafram): geodatafram of clipped WFS (for now nuts region, but can be any GDF)
         hazard (string, optional): Hazard specified, this needs to be in the app.yml (scores hazards section in list). 
-                                   Defaults to None. In that case the application will loop over all hazards
+                                  Defaults to None. In that case the application will loop over all hazards
 
     Returns:
         wmslay (list): returns a list of wmslayers

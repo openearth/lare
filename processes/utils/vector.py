@@ -99,7 +99,7 @@ def geojson_to_wkt_gpd(geojson_str: str) -> str:
 
     return geom.wkt
 
-def transformgdf(gdf, crsout=3035):
+def transform_gdf(gdf, crsout=3035):
     """
     Transform a GeoDataFrame to EPSG code 3035 (ETRS89-LAEA Europe).
 
@@ -145,5 +145,5 @@ def ensure_metric(gdf: gpd.GeoDataFrame, target_epsg: int = 3035) -> gpd.GeoData
     """Reproject a GeoDataFrame to a metric CRS when needed."""
     if is_metric_crs(gdf.crs):
         return gdf
-    return transformgdf(gdf, target_epsg)
+    return transform_gdf(gdf, target_epsg)
 
