@@ -195,6 +195,7 @@ def main_handler(session_id: str, uom_size: int, layer_name: str, id: str, arche
         gdf = ensure_metric(gdf, 3035)
         logger.info('Reprojected to EPSG:3035')
         logger.info('perf:lare_uom reproject_seconds=%.3f', perf_counter() - t_reproj_start)
+    working_crs = gdf.crs
     t_region_write_start = perf_counter()
     gdf.to_file(session_dir / 'region.gpkg', driver='GPKG')
     
@@ -202,6 +203,10 @@ def main_handler(session_id: str, uom_size: int, layer_name: str, id: str, arche
     if archetype == 'coastal':
         # clip to coastal zone before saving, to reduce file size and speed up the coastal processor
         gdf = _buffer_to_coastal_zone(gdf, cfg.ows_base, cfg.layer_coastline, buffer_m=1000)
+        # Return to the same working CRS used before coastal clipping so
+        # downstream bbox generation stays consistent without hardcoding EPSG.
+        if working_crs is not None:
+            gdf = gdf.to_crs(working_crs)
     if archetype in ('rural', 'urban'):
         _clip_and_classify_clc(gdf, archetype, session_id)
 
