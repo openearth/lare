@@ -14,9 +14,9 @@ import fiona
 from processes.config import get_config, KcsAggregation, KcsEntry
 from processes.utils.session import load_session
 from processes.utils import load_reclass_table
-from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.wfs import clip_from_wfs_cql
 from processes.utils.vector import ensure_metric
-from processes.utils.geoserver import filter_vector_by_vector, createvieweroutput, republish_layer
+from processes.utils.geoserver import filter_vector_by_vector, create_viewer_output, republish_layer
 from processes.utils.raster import (
     lare_raster,
     aggregate_hazard,
@@ -232,4 +232,4 @@ def main_handler(session_id, kcs, hazard, archetype):
 
     layer_name = f'hexagons_{archetype}_{session_id}_{kcs}'
     republish_layer(f'hexagons_{archetype}_{session_id}', workspace='tmp', style_name=entry.style, layer_name=layer_name)
-    return createvieweroutput([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wms_url)
+    return create_viewer_output([layer_name], 'Aggregated KCS', {'uom': 'Aggregated KCS'}, wms_url)

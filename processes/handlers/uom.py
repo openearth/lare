@@ -14,7 +14,7 @@ from shapely.geometry import Polygon
 
 from processes.config import get_config
 from processes.utils.session import load_session
-from processes.utils.wfs import clipfromwfs_cql
+from processes.utils.wfs import clip_from_wfs_cql
 from processes.utils.vector import ensure_metric, is_metric_crs
 from processes.utils.geoserver import publish_and_respond, filter_vector_by_vector
 from processes.utils.raster import lare_raster, reclassify_fast
@@ -152,7 +152,7 @@ def _clip_and_classify_clc(gdf: gpd.GeoDataFrame, archetype: str, session_id: st
 
 def _load_region_from_wfs(cfg, layer_name: str, feature_id: str, name_field: str) -> gpd.GeoDataFrame:
     """Fetch region geometry from WFS and ensure at least one feature exists."""
-    gdf = clipfromwfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layer_name)
+    gdf = clip_from_wfs_cql(feature_id, url=cfg.ows_base, name_field=name_field, typename=layer_name)
     if gdf is None or gdf.empty:
         raise ValueError(f'No features found for {layer_name} with id={feature_id}')
     return gdf

@@ -160,7 +160,7 @@ def wfs_filter(name_contains=None, crs='4326'):
     return gdf
 
 
-def clipfromwfs_cql(filtervalue, url=None, name_field=None, typename=None):
+def clip_from_wfs_cql(filtervalue, url=None, name_field=None, typename=None):
     """Fetch a GeoDataFrame from a WFS using a CQL equality filter.
 
     All optional parameters fall back to values from the centralised

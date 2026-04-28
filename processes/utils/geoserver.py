@@ -54,7 +54,7 @@ def get_or_create_workspace(geo, aws):
         return None
 
 # Upload raster file to GeoServer
-def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
+def load_2_geoserver(lstgtif, sld_style="default", aws="tmp"):
     """Load gtif data into geoserver
 
     Args:
@@ -84,15 +84,15 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
             password=cfg.geoserver.password,
         )
     except Exception as e:
-        logging.error('load2geoserver: cannot connect to GeoServer: %s', e)
+        logging.error('load_2_geoserver: cannot connect to GeoServer: %s', e)
 
     try:
         geo.get_workspaces()
         get_or_create_workspace(geo, aws)
     except GeoserverException as ge:
-        logging.error('load2geoserver: workspace error: %s', ge)
+        logging.error('load_2_geoserver: workspace error: %s', ge)
     except Exception as e:
-        logging.error('load2geoserver: workspace error: %s', e)
+        logging.error('load_2_geoserver: workspace error: %s', e)
 
     # create emtpy list to harvest the wmslayers
     wmslayers = []
@@ -109,9 +109,9 @@ def load2geoserver(lstgtif, sld_style="default", aws="tmp"):
             geo.create_coveragestore(layer_name=lname, path=os.path.normpath(gtif), workspace=aws)
             geo.publish_style(layer_name=lname, style_name=sld_style, workspace=aws)
         except GeoserverException as ge:
-            logging.error('load2geoserver: store/layer creation failed for %s: %s', lname, ge)
+            logging.error('load_2_geoserver: store/layer creation failed for %s: %s', lname, ge)
         except Exception as e:
-            logging.error('load2geoserver: store/layer creation failed for %s: %s', lname, e)
+            logging.error('load_2_geoserver: store/layer creation failed for %s: %s', lname, e)
 
     #print("de wms layers", wmslayers)
     return wmslayers
@@ -739,7 +739,7 @@ def publish_gpkg(
     return published_layers
 
 
-def createvieweroutput(wmslay, folder, jsontitles, wmsurl):
+def create_viewer_output(wmslay, folder, jsontitles, wmsurl):
     """Build the viewer-compatible layer catalogue structure.
 
     Returns:
@@ -781,7 +781,7 @@ def publish_and_respond(gpkg_path: Path, folder: str, titles: dict) -> list[dict
     wmslay = publish_gpkg(str(gpkg_path))
     t_publish_end = time.perf_counter()
     t_viewer_start = time.perf_counter()
-    result = createvieweroutput(wmslay, folder, titles, cfg.geoserver.url)
+    result = create_viewer_output(wmslay, folder, titles, cfg.geoserver.url)
     t_viewer_end = time.perf_counter()
     logging.info(
         (
