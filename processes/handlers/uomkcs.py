@@ -188,7 +188,7 @@ def _aggregate_kcs_raster_uom(
 def main_handler(session_id, kcs, hazard, archetype):
     cfg = get_config()
     geoserver_url = cfg.ows_base
-    wms_url = cfg.geoserver.url
+    wms_url = cfg.geoserver.public_url
 
     session_dir = load_session(session_id)
     uom_gpkg = _require_uom_gpkg(session_dir, session_id, archetype)

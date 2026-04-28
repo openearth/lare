@@ -79,7 +79,7 @@ def load_2_geoserver(lstgtif, sld_style="default", aws="tmp"):
 
     try:
         geo = Geoserver(
-            cfg.geoserver.resturl,
+            cfg.geoserver.internal_url,
             username=cfg.geoserver.user,
             password=cfg.geoserver.password,
         )
@@ -170,7 +170,7 @@ def clean_geoserver():
     cfg = get_config()
 
     cleanup_workspace_geoserver(
-        cfg.geoserver.url, cfg.geoserver.user, cfg.geoserver.password, 'tmp'
+        cfg.geoserver.internal_url, cfg.geoserver.user, cfg.geoserver.password, 'tmp'
     )
 
     # TODO: call utils.clean_tmp for tif and xml files in cfg.tmpdir
@@ -588,7 +588,7 @@ def republish_layer(store='hexagons_17727241142485569',
     cfg = get_config()
 
     try:
-        gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
+        gs = GS(cfg.geoserver.internal_url, cfg.geoserver.user, cfg.geoserver.password)
         gs.ensure_workspace(workspace)
         # Remove any stale layer/featureType from a previous run so the
         # subsequent publish is always idempotent.  Both helpers treat 404
@@ -636,7 +636,7 @@ def publish_gpkg(
     """
     t0 = time.perf_counter()
     cfg = get_config()
-    geoserver_url = cfg.geoserver.resturl
+    geoserver_url = cfg.geoserver.internal_url
     username = cfg.geoserver.user
     password = cfg.geoserver.password
     lname = os.path.basename(gpkg_path).replace('.gpkg', '')
@@ -769,7 +769,7 @@ def publish_and_respond(gpkg_path: Path, folder: str, titles: dict) -> list[dict
     t0 = time.perf_counter()
     cfg = get_config()
     store_name = gpkg_path.stem
-    gs = GS(cfg.geoserver.resturl, cfg.geoserver.user, cfg.geoserver.password)
+    gs = GS(cfg.geoserver.internal_url, cfg.geoserver.user, cfg.geoserver.password)
     t_cleanup_start = time.perf_counter()
     try:
         gs.delete_layer_and_store('tmp', store_name)
@@ -781,7 +781,7 @@ def publish_and_respond(gpkg_path: Path, folder: str, titles: dict) -> list[dict
     wmslay = publish_gpkg(str(gpkg_path))
     t_publish_end = time.perf_counter()
     t_viewer_start = time.perf_counter()
-    result = create_viewer_output(wmslay, folder, titles, cfg.geoserver.url)
+    result = create_viewer_output(wmslay, folder, titles, cfg.geoserver.public_url)
     t_viewer_end = time.perf_counter()
     logging.info(
         (

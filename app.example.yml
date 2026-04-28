@@ -1,7 +1,7 @@
 sdi:
   geoserver:
-    url: "http://<geoserver-host>:8080/geoserver"
-    resturl: "http://<geoserver-host>:8080/geoserver"
+    internal_url: "http://<geoserver-host>:8080/geoserver"
+    public_url: "http://localhost:8000/geoserver"
     workspace: "<workspace>"
     user: "<geoserver-user>"
     password: "<geoserver-password>"

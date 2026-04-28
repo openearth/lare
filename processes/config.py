@@ -9,7 +9,7 @@ Usage
 
     cfg = get_config()
     print(cfg.tmpdir)
-    print(cfg.geoserver.url)
+    print(cfg.geoserver.public_url)
 """
 
 import os
@@ -28,8 +28,8 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 class GeoServerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
-    url: str
-    resturl: str
+    internal_url: str
+    public_url: str
     workspace: str = "tmp"
     user: str
     password: str
