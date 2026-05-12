@@ -1,0 +1,70 @@
+server:
+  bind:
+    host: 0.0.0.0
+    port: 80
+  url: https://lare.openearth.eu
+  mimetype: application/json; charset=UTF-8
+  encoding: utf-8
+  languages:
+    - en-US
+  cors: true
+  pretty_print: true
+  limits:
+    max_items: 100
+  map:
+    url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  manager:
+    name: TinyDB
+    connection: /tmp/pygeoapi-process-manager.db
+    output_dir: /tmp/
+
+logging:
+  level: INFO
+
+metadata:
+  identification:
+    title: LARE - Landscape Restoration Engine
+    description: OGC API Processes for landscape archetype analysis, hazard assessment, and coastal zone management.
+    keywords:
+      - landscape
+      - archetype
+      - hazard
+      - coastal
+      - restoration
+    keywords_type: theme
+    terms_of_service: https://creativecommons.org/licenses/by/4.0/
+    url: https://github.com/openearth/lare
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+  provider:
+    name: Deltares
+    url: https://www.deltares.nl
+  contact:
+    name: Ioanna Micha, Gerrit Hendriksen
+    position: Geospatial Developer, Geospatial Advisor
+    email: ioanna.micha@deltares.nl, gerrit.hendriksen@deltares.nl
+    url: https://www.deltares.nl
+    role: pointOfContact
+
+resources:
+  lare-start:
+    type: process
+    processor:
+      name: processes.process_start.LareStartProcessor
+
+  lare-uom:
+    type: process
+    processor:
+      name: processes.process_uom.LareUomProcessor
+
+  lare-uomkcs:
+    type: process
+    processor:
+      name: processes.process_uomkcs.LareUomKcsProcessor
+
+  lare-reset:
+    type: process
+    processor:
+      name: processes.process_reset.LareResetProcessor
