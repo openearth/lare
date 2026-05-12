@@ -1,0 +1,7 @@
+services:
+  pygeoapi:
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LARE_TMPDIR_HOST: "${LARE_TMPDIR_HOST:-/opt/lare/tmp}"

@@ -1,0 +1,5 @@
+services:
+  pygeoapi:
+    command: ["run-with-hot-reload"]
+    volumes:
+      - ./processes:/pygeoapi/processes

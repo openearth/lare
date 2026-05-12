@@ -13,8 +13,11 @@ docker compose up --build
 ```
 
 - The API is served at **[http://localhost:5000](http://localhost:5000)** (host port `5000` maps to container port `80`).
+- `docker-compose.yml` contains shared settings.
+- `docker-compose.override.yml` is loaded automatically for local development and enables live code mounts plus hot reload.
+- `docker-compose.prod.yml` contains production overrides.
 
-### Development (default `docker-compose.yml`)
+### Development (default Compose command)
 
 - **`processes/`**, **`app.yml`**, and **`./tmp`** are bind-mounted into the container.
 - **`PYTHONPATH=/pygeoapi`** makes Python load the live `processes/` tree (over the copy installed by `pip install` in the image).
@@ -26,6 +29,27 @@ docker compose up --build
 ### Config: temp directory override
 
 Set environment variable **`LARE_TMPDIR`** to override `sdi.tmp.tmpdir` from `app.yml` (e.g. native Windows Python without Docker: `LARE_TMPDIR=C:\develop\lare\tmp`).
+
+For Docker Compose, copy `.env.example` to `.env` and set **`LARE_TMPDIR_HOST`** to the absolute host path that GeoServer can read. Examples:
+
+```bash
+# Windows development
+LARE_TMPDIR_HOST=C:/develop/lare/tmp
+
+# Alma/Linux production
+LARE_TMPDIR_HOST=/opt/lare/tmp
+```
+
+### Production on Alma/Linux
+
+From `/opt/lare`:
+
+```bash
+mkdir -p tmp
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+```
+
+The base Compose file defines the shared mounts. The production override adds `restart: unless-stopped`, sets `${LARE_TMPDIR_HOST:-/opt/lare/tmp}` as the GeoServer-visible temp directory, and adds `host.docker.internal` for Linux Docker hosts.
 
 Useful endpoints:
 

@@ -2,31 +2,17 @@ services:
   pygeoapi:
     build: .
     ports:
-      - "5000:80"
-    # Dev: live code + Gunicorn hot reload (see README). For production, drop
-    # code/tmp mounts, remove command / PYTHONPATH, tune WSGI_WORKERS if needed.
+      - "${LARE_API_PORT:-5000}:80"
     environment:
       PYTHONPATH: /pygeoapi
+
       # Host-visible path used when registering GeoPackage datastores in
       # external (non-container) GeoServer instances.
-      LARE_TMPDIR_HOST: C:/develop/lare/tmp
-    command: ["run-with-hot-reload"]
+      LARE_TMPDIR_CONTAINER: /pygeoapi/tmp
+      LARE_TMPDIR_HOST: "${LARE_TMPDIR_HOST:-./tmp}"
     volumes:
-      - ./pygeoapi-config.yml:/pygeoapi/local.config.yml:rw
-      - ./processes:/pygeoapi/processes
-      - ./app.yml:/pygeoapi/app.yml:rw
-      - ./data:/pygeoapi/data:rw
-      - ./tmp:/pygeoapi/tmp
+      - ${LARE_PYGEOAPI_CONFIG:-./pygeoapi-config.yml}:/pygeoapi/local.config.yml:ro
+      - ${LARE_APP_CONFIG:-./app.yml}:/pygeoapi/app.yml:rw
+      - ${LARE_DATA_DIR:-./data}:/pygeoapi/data:rw
+      - ${LARE_TMP_DIR:-./tmp}:/pygeoapi/tmp:rw
 
-  # --- Uncomment when LARE processes are ready ---
-  # geoserver:
-  #   image: kartoza/geoserver:2.26.1
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - GEOSERVER_ADMIN_PASSWORD=geoserver
-  #   volumes:
-  #     - geoserver-data:/opt/geoserver/data_dir
-
-# volumes:
-#   geoserver-data:

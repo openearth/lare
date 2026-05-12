@@ -4,6 +4,9 @@ static/*
 logs/*
 configuration*.txt
 app.yml
+.env
+.env.*
+!.env.example
 tmp/*
 *.tif
 *.tif.*
