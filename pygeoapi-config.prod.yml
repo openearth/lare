@@ -7,7 +7,7 @@ server:
   encoding: utf-8
   languages:
     - en-US
-  cors: true
+  cors: false
   pretty_print: true
   limits:
     max_items: 100
