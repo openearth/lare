@@ -1,4 +1,4 @@
-# LARE — Landscape Archetype Restoration Engine
+# LARE — Landscape Resilience Explorer
 
 OGC API — Processes deployment using [pygeoapi](https://pygeoapi.io/). Configure offerings in `pygeoapi-config.yml` (see [publishing processes](https://dive.pygeoapi.io/publishing/ogcapi-processes/) in the pygeoapi workshop).
 
