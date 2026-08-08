@@ -44,3 +44,9 @@ class UomKcsInputs(BaseModel):
                 f'Available: {available}'
             )
         return self
+
+
+class NbsInputs(BaseModel):
+    session_id: str = Field(min_length=1)
+    archetype: Literal['urban', 'rural', 'coastal']
+
