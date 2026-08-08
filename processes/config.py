@@ -132,8 +132,14 @@ class HazardsConfig(BaseModel):
     list: List[str]
     hazard: Dict[str, str]
     clc_scores: Dict[str, str] = {}
-    nbs_labels: Dict[str, List[str]] = {}
-    nbs_table: str = "data/clc_nbs_hazard_updated.csv"
+
+
+class NbsConfig(BaseModel):
+    """Nature-Based Solutions lookup configuration."""
+
+    model_config = ConfigDict(frozen=True)
+    table: str
+    labels: Dict[str, List[str]]
 
 
 class ScoresConfig(BaseModel):
@@ -168,6 +174,7 @@ class AppConfig(BaseModel):
     ows: OwsConfig
     layers: LayersConfig
     hazards: HazardsConfig
+    nbs: NbsConfig
     hazard_layers: Dict[str, str] = {}
     scores: ScoresConfig
     paths: PathsConfig
@@ -232,12 +239,12 @@ class AppConfig(BaseModel):
         return self.hazards.clc_scores
 
     @property
-    def hazard_nbs_labels(self) -> Dict[str, List[str]]:
-        return self.hazards.nbs_labels
+    def nbs_labels(self) -> Dict[str, List[str]]:
+        return self.nbs.labels
 
     @property
-    def hazard_nbs_table(self) -> str:
-        return self.hazards.nbs_table
+    def nbs_table(self) -> str:
+        return self.nbs.table
 
     @property
     def topo_hazards_csv(self) -> str:

@@ -63,9 +63,9 @@ def _clc_classes_from_lut(cfg) -> list[int]:
 
 
 def _hazard_csv_labels(hazard: str) -> list[str]:
-    """Resolve a process hazard key to CSV labels via ``hazards.nbs_labels``."""
+    """Resolve a process hazard key to CSV labels via ``nbs.labels``."""
     cfg = get_config()
-    labels_map = cfg.hazard_nbs_labels or {}
+    labels_map = cfg.nbs_labels
     key = hazard.strip()
     # Prefer exact key, then case-insensitive match.
     if key in labels_map:
@@ -78,7 +78,7 @@ def _hazard_csv_labels(hazard: str) -> list[str]:
         available = sorted(labels_map.keys())
         raise ValueError(
             f'Hazard {hazard!r} has no NBS label mapping in app.yml '
-            f'(hazards.nbs_labels). Available keys: {available}'
+            f'(nbs.labels). Available keys: {available}'
         )
     return [str(label).strip() for label in labels if str(label).strip()]
 
@@ -90,12 +90,12 @@ def _repo_data_path(*parts: str) -> Path:
 def _build_nbs_lookup(archetype: str, hazard: str) -> dict[int, list[str]]:
     """Map remapped CLC code → sorted unique NBS codes for archetype + hazard.
 
-    Uses the harmonized NBS table from ``hazards.nbs_table`` (default
-    ``data/clc_nbs_hazard_updated.csv``), filtered by ``hazard`` labels from
-    ``hazards.nbs_labels`` and ``landscape_case`` matching the process archetype.
+    Uses the harmonized NBS table from ``nbs.table``, filtered by ``hazard``
+    labels from ``nbs.labels`` and ``landscape_case`` matching the process
+    archetype.
     """
     cfg = get_config()
-    nbs_rel = cfg.hazard_nbs_table or 'data/clc_nbs_hazard_updated.csv'
+    nbs_rel = cfg.nbs_table
     nbs_path = _repo_data_path(*Path(nbs_rel).parts)
     if not nbs_path.is_file():
         raise FileNotFoundError(f'NBS mapping not found: {nbs_path}')

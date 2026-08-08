@@ -53,10 +53,12 @@ hazards:
            "fire": "Fire mitigation"}
   clc_scores:
     archetype: "data/landscapearchetype.csv"
+
+nbs:
   # Harmonized NBS table (see scripts/harmonize_clc_nbs_hazard.py)
-  nbs_table: "data/clc_nbs_hazard_updated.csv"
-  # Map process / hazard_layers keys -> hazard labels in nbs_table
-  nbs_labels:
+  table: "data/clc_nbs_hazard_updated.csv"
+  # Map process / hazard_layers keys -> hazard labels in nbs.table
+  labels:
     heat: ["Heat"]
     drought: ["Drought"]
     erosion: ["Erosion"]
