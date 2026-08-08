@@ -17,9 +17,12 @@ PROCESS_METADATA = {
     'title': 'Get NBS per UOM',
     'description': (
         'Computes a per-hexagon Corine Land Cover (CLC) zonal histogram for '
-        'urban, rural, or coastal Units of Measurement and republishes the '
-        'GeoPackage with one count column per CLC class (clc_1 … clc_N) plus '
-        'clc_majority (most frequent CLC class per hexagon).'
+        'urban, rural, or coastal Units of Measurement, writes the top 5 CLC '
+        'ranks with their NBS lists for the given hazard and archetype, and '
+        'selects clc_nbs_majority / nbs_list_majority by searching all CLC '
+        'classes with count > 0 (not limited to the displayed ranks). Writes '
+        'clc_* counts, clc_majority, clc_rank_1..5, nbs_list_1..5, '
+        'clc_nbs_majority, nbs_list_majority, and clc_nbs_majority_area (m2).'
     ),
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'inputs': {
@@ -35,6 +38,15 @@ PROCESS_METADATA = {
             'schema': {'type': 'string', 'enum': ['urban', 'rural', 'coastal']},
             'minOccurs': 1,
         },
+        'hazard': {
+            'title': 'Hazard',
+            'description': (
+                'Hazard key from app config (e.g. heat, drought, pluvial_RP200). '
+                'Used to look up NBS options in clc_nbs_hazard.csv.'
+            ),
+            'schema': {'type': 'string'},
+            'minOccurs': 1,
+        },
     },
     'outputs': {
         'result': {
@@ -46,6 +58,7 @@ PROCESS_METADATA = {
         'inputs': {
             'session_id': '17751340029381046',
             'archetype': 'urban',
+            'hazard': 'heat',
         }
     },
 }
@@ -63,7 +76,7 @@ class LareNbsProcessor(BaseProcessor):
             raise ProcessorExecuteError(exc.errors()[0]['msg']) from exc
 
         try:
-            result = main_handler(inputs.session_id, inputs.archetype)
+            result = main_handler(inputs.session_id, inputs.archetype, inputs.hazard)
         except FileNotFoundError as exc:
             raise ProcessorExecuteError(str(exc)) from exc
         except Exception as exc:

@@ -33,7 +33,8 @@
     "process": "lare-nbs",
     "body": {
       "session_id": "{{sessionid}}",
-      "archetype": "coastal"
+      "archetype": "coastal",
+      "hazard": "pluvial_RP200"
     },
     "expected_status": 200
   }

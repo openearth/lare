@@ -132,6 +132,8 @@ class HazardsConfig(BaseModel):
     list: List[str]
     hazard: Dict[str, str]
     clc_scores: Dict[str, str] = {}
+    nbs_labels: Dict[str, List[str]] = {}
+    nbs_table: str = "data/clc_nbs_hazard_updated.csv"
 
 
 class ScoresConfig(BaseModel):
@@ -228,6 +230,14 @@ class AppConfig(BaseModel):
     @property
     def hazard_clc_scores(self) -> Dict[str, str]:
         return self.hazards.clc_scores
+
+    @property
+    def hazard_nbs_labels(self) -> Dict[str, List[str]]:
+        return self.hazards.nbs_labels
+
+    @property
+    def hazard_nbs_table(self) -> str:
+        return self.hazards.nbs_table
 
     @property
     def topo_hazards_csv(self) -> str:

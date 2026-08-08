@@ -33,7 +33,8 @@
     "process": "lare-nbs",
     "body": {
       "session_id": "{{sessionid}}",
-      "archetype": "rural"
+      "archetype": "rural",
+      "hazard": "drought"
     },
     "expected_status": 200
   }
