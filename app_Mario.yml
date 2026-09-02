@@ -1,0 +1,104 @@
+sdi:
+  geoserver:
+    internal_url: "http://host.docker.internal:8080/geoserver"
+    public_url: "http://localhost:8080/geoserver"
+    workspace: "tmp"
+    user: "admin"
+    password: "geoserver"
+  tmp:
+    tmpdir: '/pygeoapi/tmp'
+    #tmpdir : '/opt/geoserver_data/tmp'
+ows:
+  #base: "https://desirmed.openearth.eu/geoserver/ows"
+  base: "http://host.docker.internal:8080/geoserver/ows"
+  wfs_nuts:
+    #url: "https://desirmed.openearth.eu/geoserver/ows"
+    url: "http://host.docker.internal:8080/geoserver/ows"
+    layer: "region:nuts_2021"
+    name_field: "nuts_name"     # adjust to your attribute for NUTS name filter
+
+layers:
+  datasets: {"region:nuts_2021":"nuts_name",
+             "hydro:hybas_eu_lev12_v1c": "hybas_id"
+            }
+  kcs:
+    "socio_economic:pop2020":
+      type: raster
+      aggregation: count
+      style: "hazard_vulnerable_population"
+    "socio_economic:pop2030":
+      type: raster
+      aggregation: count
+      style: "hazard_vulnerable_population"
+    "transport:transport":
+      type: vector
+      aggregation: length
+      style: "hazard_transport"
+    "socio_economic:elderly_facilities":
+      type: vector
+      aggregation: count
+      style: "hazard_vulnerable_population"
+    "socio_economic:hospitals":
+      type: vector
+      aggregation: count
+      style: "hazard_vulnerable_population"
+    "agriculture:agriculture":
+      type: raster
+      aggregation: count
+      style: "hazard_agriculture"
+  dem: "topography:dem"
+  transport: "topography:transport"
+  clc: "landuse:U2018_CLC2018_V2020_20u1_cog"
+  eunis: "landuse:eea_r_3035_100m_v3-1_cog"
+  coastline: "coast:coastlines2"
+  imperviousness: "imperviousness:imperviousness"
+  population: "socio_economic:pop2020"
+
+hazards:
+  list: ["flood", "drought", "erosion", "heat", "fire"]
+  hazard: {"flood":"Flood mitigation",
+           "drought":"Drought mitigation",
+           "erosion":"Erosion mitigation",
+           "heat": "Heatwave mitigation",
+           "fire": "Fire mitigation"}
+  clc_scores:
+    archetype: "data/landscapearchetype.csv"
+
+nbs:
+  # Harmonized NBS table (see scripts/harmonize_clc_nbs_hazard.py)
+  table: "data/clc_nbs_hazard_updated.csv"
+  # Map process / hazard_layers keys -> hazard labels in nbs.table
+  labels:
+    heat: ["Heat"]
+    drought: ["Drought"]
+    erosion: ["Erosion"]
+    fire: ["Fires"]
+    flood: ["Flood"]
+    salinity: ["Other"]
+    slr: ["Sea level rise"]
+    pluvial_RP10: ["Flood"]
+    pluvial_RP20: ["Flood"]
+    pluvial_RP50: ["Flood"]
+    pluvial_RP75: ["Flood"]
+    pluvial_RP100: ["Flood"]
+    pluvial_RP200: ["Flood"]
+
+hazard_layers:
+  pluvial_RP10: "hazard:Europe_RP10_filled_depth"
+  pluvial_RP20: "hazard:Europe_RP20_filled_depth"
+  pluvial_RP50: "hazard:Europe_RP50_filled_depth"
+  pluvial_RP75: "hazard:Europe_RP75_filled_depth"
+  pluvial_RP100: "hazard:Europe_RP100_filled_depth"
+  pluvial_RP200: "hazard:Europe_RP200_filled_depth"
+  heat: "hazard:utci_days_above_46_daily_max"
+  drought: "hazard:cdinx_mode_over_time"
+  salinity: "hazard:salinity"
+
+scores:
+  # Optional: If you also want an archetype code raster from CLC
+  basecsv_path: "data"
+  # columns: clc,score (archetype code)
+  topo_hazards_csv: 'data/topo_hazards.csv'
+
+paths:
+  tmp_base: ./tmp
