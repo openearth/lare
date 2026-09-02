@@ -1,18 +1,19 @@
 sdi:
   geoserver:
-    internal_url: "http://<geoserver-host>:8080/geoserver"
-    public_url: "http://localhost:8000/geoserver"
-    workspace: "<workspace>"
-    user: "<geoserver-user>"
-    password: "<geoserver-password>"
+    internal_url: "http://host.docker.internal:8080/geoserver"
+    public_url: "http://localhost:8080/geoserver"
+    workspace: "tmp"
+    user: "admin"
+    password: "geoserver"
   tmp:
     tmpdir: '/pygeoapi/tmp'
+    #tmpdir : '/opt/geoserver_data/tmp'
 ows:
   #base: "https://desirmed.openearth.eu/geoserver/ows"
-  base: "http://<geoserver-host>:8080/geoserver/ows"
+  base: "http://host.docker.internal:8080/geoserver/ows"
   wfs_nuts:
     #url: "https://desirmed.openearth.eu/geoserver/ows"
-    url: "http://<geoserver-host>:8080/geoserver/ows"
+    url: "http://host.docker.internal:8080/geoserver/ows"
     layer: "region:nuts_2021"
     name_field: "nuts_name"     # adjust to your attribute for NUTS name filter
 
@@ -23,24 +24,33 @@ layers:
   kcs:
     "socio_economic:pop2020":
       type: raster
-      aggregation: mean
+      aggregation: count
+      style: "hazard_vulnerable_population"
     "socio_economic:pop2030":
       type: raster
       aggregation: count
+      style: "hazard_vulnerable_population"
     "transport:transport":
       type: vector
       aggregation: length
+      style: "hazard_transport"
     "socio_economic:elderly_facilities":
       type: vector
       aggregation: count
+      style: "hazard_vulnerable_population"
     "socio_economic:hospitals":
       type: vector
       aggregation: count
+      style: "hazard_vulnerable_population"
+    "agriculture:agriculture":
+      type: raster
+      aggregation: count
+      style: "hazard_agriculture"
   dem: "topography:dem"
   transport: "topography:transport"
   clc: "landuse:U2018_CLC2018_V2020_20u1_cog"
   eunis: "landuse:eea_r_3035_100m_v3-1_cog"
-  coastline: "coast:coastlines"
+  coastline: "coast:coastlines2"
   imperviousness: "imperviousness:imperviousness"
   population: "socio_economic:pop2020"
 
@@ -80,7 +90,9 @@ hazard_layers:
   pluvial_RP75: "hazard:Europe_RP75_filled_depth"
   pluvial_RP100: "hazard:Europe_RP100_filled_depth"
   pluvial_RP200: "hazard:Europe_RP200_filled_depth"
-  heat: "heat:utci_days_above_46_daily_max"
+  heat: "hazard:utci_days_above_46_daily_max"
+  drought: "hazard:cdinx_mode_over_time"
+  salinity: "hazard:salinity"
 
 scores:
   # Optional: If you also want an archetype code raster from CLC

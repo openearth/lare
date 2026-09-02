@@ -896,6 +896,152 @@ def aggregate_raster_to_hexagons(raster_path, hexagons, stat='mean', value_range
         return hexagons
 
 
+def aggregate_raster_histogram_to_hexagons(
+    raster_path,
+    hexagons,
+    classes,
+    column_prefix='clc_',
+    top_n: int = 5,
+):
+    """Per-class pixel counts inside each hexagon (QGIS-style zonal histogram).
+
+    Rasterizes *hexagons* onto the source raster grid, then writes one integer
+    column per class: ``{column_prefix}{class}`` (e.g. ``clc_1``, ``clc_12``).
+    Also writes:
+
+    * ``clc_majority`` – class with the highest count (``0`` if empty)
+    * ``clc_rank_1`` … ``clc_rank_{top_n}`` – CLC codes ordered by descending
+      count; empty ranks are ``NaN``
+
+    Missing class count columns are filled with ``0``. Existing columns with
+    those names are replaced so re-runs stay idempotent.
+
+    Parameters
+    ----------
+    raster_path : str
+        Path to a single-band categorical raster.
+    hexagons : GeoDataFrame
+        Hexagon polygons to update.
+    classes : list[int]
+        Class values to count (one output column each).
+    column_prefix : str
+        Prefix for output column names. Defaults to ``'clc_'``.
+    top_n : int
+        Number of ranked CLC columns to write. Defaults to ``5``.
+
+    Returns
+    -------
+    GeoDataFrame
+        *hexagons* with histogram, majority, and rank columns populated.
+    """
+    if classes is None or len(classes) == 0:
+        raise ValueError("'classes' must be a non-empty list for zonal histogram.")
+    if top_n < 1:
+        raise ValueError("'top_n' must be >= 1.")
+
+    classes_arr = np.sort(np.unique(np.asarray(classes, dtype='int32')))
+    col_names = [f'{column_prefix}{int(c)}' for c in classes_arr]
+    majority_column = 'clc_majority'
+    rank_columns = [f'clc_rank_{i}' for i in range(1, top_n + 1)]
+    log_memory_status(f"Start of aggregate_raster_histogram_to_hexagons for {os.path.basename(raster_path)}")
+
+    def _write_counts(counts_matrix):
+        nonlocal hexagons
+        drop_cols = [c for c in col_names + [majority_column] if c in hexagons.columns]
+        # Drop legacy area column if a previous run wrote it on raw majority.
+        if 'clc_majority_area' in hexagons.columns:
+            drop_cols.append('clc_majority_area')
+        drop_cols.extend(
+            c for c in hexagons.columns
+            if c.startswith('clc_rank_') or c in rank_columns
+        )
+        drop_cols = list(dict.fromkeys(drop_cols))
+        if drop_cols:
+            hexagons = hexagons.drop(columns=drop_cols)
+        for idx, col in enumerate(col_names):
+            hexagons[col] = counts_matrix[:, idx]
+
+        n_zones = counts_matrix.shape[0]
+        row_max = counts_matrix.max(axis=1)
+        majority = np.zeros(n_zones, dtype=np.int32)
+        has_vals = row_max > 0
+        if np.any(has_vals):
+            majority[has_vals] = classes_arr[np.argmax(counts_matrix[has_vals], axis=1)]
+        hexagons[majority_column] = majority
+
+        # Rank CLC classes by descending pixel count; zero-count slots stay NaN.
+        sort_key = counts_matrix.astype(np.float64).copy()
+        sort_key[sort_key <= 0] = -1.0
+        order = np.argsort(-sort_key, axis=1)
+        zone_idx = np.arange(n_zones)
+        for rank_i, col in enumerate(rank_columns):
+            class_pos = order[:, rank_i]
+            ranked = classes_arr[class_pos].astype(np.float64)
+            counts_at = counts_matrix[zone_idx, class_pos]
+            ranked[counts_at <= 0] = np.nan
+            hexagons[col] = ranked
+        return hexagons
+
+    with rasterio.open(raster_path) as src:
+        if src.crs is None:
+            raise ValueError(f"Raster {raster_path} has no CRS.")
+
+        hex_in_raster_crs = hexagons.to_crs(src.crs) if hexagons.crs != src.crs else hexagons
+        n_zones = len(hex_in_raster_crs)
+        zone_ids = np.arange(1, n_zones + 1, dtype=np.int32)
+        zero_counts = np.zeros((n_zones, len(classes_arr)), dtype=np.int32)
+
+        shapes = [
+            (geom, int(zone_id))
+            for zone_id, geom in zip(zone_ids, hex_in_raster_crs.geometry)
+            if geom is not None and not geom.is_empty
+        ]
+        if not shapes:
+            return _write_counts(zero_counts)
+
+        log_memory_status(f"Before rasterize for histogram {os.path.basename(raster_path)}")
+        zone_raster = rasterize(
+            shapes=shapes,
+            out_shape=(src.height, src.width),
+            transform=src.transform,
+            fill=0,
+            dtype='int32',
+            all_touched=False,
+        )
+        raster_values = src.read(1)
+        log_memory_status(f"After reading raster for histogram {os.path.basename(raster_path)}")
+
+        valid_mask = zone_raster > 0
+        nodata = src.nodata
+        if nodata is not None:
+            if np.issubdtype(raster_values.dtype, np.floating) and np.isnan(nodata):
+                valid_mask &= ~np.isnan(raster_values)
+            else:
+                valid_mask &= raster_values != nodata
+
+        if not np.any(valid_mask):
+            hexagons = _write_counts(zero_counts)
+            log_memory_status(
+                f"End of aggregate_raster_histogram_to_hexagons for {os.path.basename(raster_path)} (no valid data)"
+            )
+            return hexagons
+
+        zones = zone_raster[valid_mask]
+        vals_i = raster_values[valid_mask].astype('int32', copy=False)
+        class_pos = np.searchsorted(classes_arr, vals_i)
+        in_bounds = (class_pos >= 0) & (class_pos < len(classes_arr))
+        exact = np.zeros_like(in_bounds, dtype=bool)
+        exact[in_bounds] = classes_arr[class_pos[in_bounds]] == vals_i[in_bounds]
+
+        counts = np.zeros((n_zones + 1, len(classes_arr)), dtype=np.int32)
+        if np.any(exact):
+            np.add.at(counts, (zones[exact], class_pos[exact]), 1)
+
+        hexagons = _write_counts(counts[1:])
+        log_memory_status(f"End of aggregate_raster_histogram_to_hexagons for {os.path.basename(raster_path)}")
+        return hexagons
+
+
 def aggregate_coastal(session_id):
     cfg = get_config()
 

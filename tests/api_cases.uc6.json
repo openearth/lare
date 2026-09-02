@@ -1,0 +1,41 @@
+[
+  {
+    "name": "Start session",
+    "process": "lare-start",
+    "body": {},
+    "expected_status": 200
+  },
+  {
+    "name": "Create UoM",
+    "process": "lare-uom",
+    "body": {
+      "session_id": "{{sessionid}}",
+      "uom_size": 100000,
+      "layer_name": "region:nuts_2021",
+      "id": "Cantabria",
+      "archetype": "urban"
+    },
+    "expected_status": 200
+  },
+  {
+    "name": "Run UOM+KCS aggregation",
+    "process": "lare-uomkcs",
+    "body": {
+      "session_id": "{{sessionid}}",
+      "kcs": "hospitals",
+      "hazard": "heat",
+      "archetype": "urban"
+    },
+    "expected_status": 200
+  },
+  {
+    "name": "Get NBS per UOM",
+    "process": "lare-nbs",
+    "body": {
+      "session_id": "{{sessionid}}",
+      "archetype": "urban",
+      "hazard": "heat"
+    },
+    "expected_status": 200
+  }
+]
