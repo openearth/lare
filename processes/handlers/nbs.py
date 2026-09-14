@@ -152,23 +152,14 @@ def _annotate_nbs_columns(
     top_n: int = _TOP_N,
     column_prefix: str = 'clc_',
 ) -> gpd.GeoDataFrame:
-    """Add display nbs_list_* for top ranks plus full-depth NBS majority columns.
-
-    * ``nbs_list_1`` … ``nbs_list_{top_n}`` – NBS codes for displayed ranks only
-      (empty string when that ranked CLC has no NBS).
-    * ``clc_nbs_majority`` / ``nbs_list_majority`` / ``clc_nbs_majority_area`` –
-      first CLC with pixel count > 0 (by descending count across **all**
-      histogram classes) that has NBS for this hazard and archetype. Area is
-      majority-class pixel count × CLC pixel ground area (m²). Search is not
-      limited to ``top_n``.
-    """
+    """Add top-rank areas and NBS lists plus full-depth NBS-majority fields."""
     lookup = _build_nbs_lookup(archetype, hazard)
     n = len(hexagons)
 
     drop_cols = ['clc_nbs_majority', 'nbs_list_majority', 'clc_nbs_majority_area', 'clc_majority_area']
     drop_cols.extend(
         c for c in hexagons.columns
-        if c.startswith('nbs_flag_') or c.startswith('nbs_list_')
+        if c.startswith('clc_rank_area_') or c.startswith('nbs_flag_') or c.startswith('nbs_list_')
     )
     drop_cols = list(dict.fromkeys(drop_cols))
     existing = [c for c in drop_cols if c in hexagons.columns]
@@ -187,6 +178,7 @@ def _annotate_nbs_columns(
     count_cols.sort(key=lambda t: t[0])
 
     lists = {i: np.array([''] * n, dtype=object) for i in range(1, top_n + 1)}
+    rank_areas = {i: np.full(n, np.nan) for i in range(1, top_n + 1)}
     nbs_majority = np.full(n, np.nan)
     nbs_list_majority = np.array([''] * n, dtype=object)
     nbs_majority_area = np.full(n, np.nan)
@@ -203,6 +195,12 @@ def _annotate_nbs_columns(
             if raw is None or (isinstance(raw, float) and np.isnan(raw)):
                 continue
             clc_code = int(raw)
+            count_col = f'{column_prefix}{clc_code}'
+            try:
+                count_val = int(row[count_col]) if row[count_col] is not None else 0
+            except (KeyError, TypeError, ValueError):
+                count_val = 0
+            rank_areas[rank][row_i] = float(count_val) * float(pixel_area_m2)
             nbs_codes = lookup.get(clc_code, [])
             lists[rank][row_i] = _NBS_SEP.join(nbs_codes) if nbs_codes else ''
 
@@ -224,6 +222,9 @@ def _annotate_nbs_columns(
                 nbs_list_majority[row_i] = _NBS_SEP.join(nbs_codes)
                 nbs_majority_area[row_i] = float(count_val) * float(pixel_area_m2)
                 break
+
+    for rank in range(1, top_n + 1):
+        hexagons[f'clc_rank_area_{rank}'] = rank_areas[rank]
 
     for rank in range(1, top_n + 1):
         hexagons[f'nbs_list_{rank}'] = lists[rank]

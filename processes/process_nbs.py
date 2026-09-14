@@ -21,7 +21,8 @@ PROCESS_METADATA = {
         'ranks with their NBS lists for the given hazard and archetype, and '
         'selects clc_nbs_majority / nbs_list_majority by searching all CLC '
         'classes with count > 0 (not limited to the displayed ranks). Writes '
-        'clc_* counts, clc_majority, clc_rank_1..5, nbs_list_1..5, '
+        'clc_* counts, clc_majority, clc_rank_1..5, clc_rank_area_1..5, '
+        'nbs_list_1..5, '
         'clc_nbs_majority, nbs_list_majority, and clc_nbs_majority_area (m2).'
     ),
     'jobControlOptions': ['sync-execute', 'async-execute'],
