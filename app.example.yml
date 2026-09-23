@@ -54,6 +54,25 @@ hazards:
   clc_scores:
     archetype: "data/landscapearchetype.csv"
 
+nbs:
+  # Harmonized NBS table (see scripts/harmonize_clc_nbs_hazard.py)
+  table: "data/clc_nbs_hazard_updated.csv"
+  # Map process / hazard_layers keys -> hazard labels in nbs.table
+  labels:
+    heat: ["Heat"]
+    drought: ["Drought"]
+    erosion: ["Erosion"]
+    fire: ["Fires"]
+    flood: ["Flood"]
+    salinity: ["Other"]
+    slr: ["Sea level rise"]
+    pluvial_RP10: ["Flood"]
+    pluvial_RP20: ["Flood"]
+    pluvial_RP50: ["Flood"]
+    pluvial_RP75: ["Flood"]
+    pluvial_RP100: ["Flood"]
+    pluvial_RP200: ["Flood"]
+
 hazard_layers:
   pluvial_RP10: "hazard:Europe_RP10_filled_depth"
   pluvial_RP20: "hazard:Europe_RP20_filled_depth"

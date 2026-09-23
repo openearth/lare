@@ -207,7 +207,7 @@ def main_handler(session_id: str, uom_size: int, layer_name: str, id: str, arche
         # downstream bbox generation stays consistent without hardcoding EPSG.
         if working_crs is not None:
             gdf = gdf.to_crs(working_crs)
-    if archetype in ('rural', 'urban'):
+    if archetype in ('rural', 'urban', 'coastal'):
         _clip_and_classify_clc(gdf, archetype, session_id)
 
     t_region_write_end = perf_counter()

@@ -44,3 +44,22 @@ class UomKcsInputs(BaseModel):
                 f'Available: {available}'
             )
         return self
+
+
+class NbsInputs(BaseModel):
+    session_id: str = Field(min_length=1)
+    archetype: Literal['urban', 'rural', 'coastal']
+    hazard: str = Field(min_length=1)
+
+    @model_validator(mode='after')
+    def hazard_in_config(self) -> Self:
+        from processes.config import get_config
+        cfg = get_config()
+        if self.hazard not in cfg.hazard_layers:
+            available = list(cfg.hazard_layers.keys())
+            raise ValueError(
+                f'Hazard {self.hazard!r} not found in config hazard_layers. '
+                f'Available: {available}'
+            )
+        return self
+

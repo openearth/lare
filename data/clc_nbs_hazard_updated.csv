@@ -1,0 +1,545 @@
+clc,lu,desc0,nbs_code,hazard,landscape_case
+1,111,Continuous urban fabric,NA-7,Heat,Urban
+1,111,Continuous urban fabric,WF-9,Drought,Urban
+1,111,Continuous urban fabric,WF-9,Heat,Urban
+1,111,Continuous urban fabric,NA-15,Other,Urban
+1,111,Continuous urban fabric,ES-22,Flood,Urban
+1,111,Continuous urban fabric,ES-22,Heat,Urban
+1,111,Continuous urban fabric,PO-5,Other,Urban
+1,111,Continuous urban fabric,PO-5,Flood,Urban
+1,111,Continuous urban fabric,PO-5,Heat,Urban
+1,111,Continuous urban fabric,WF-9,Other,Urban
+1,111,Continuous urban fabric,PO-4,Other,Urban
+1,111,Continuous urban fabric,PO-4,Erosion,Urban
+1,111,Continuous urban fabric,PO-4,Flood,Urban
+1,111,Continuous urban fabric,PO-4,Drought,Urban
+1,111,Continuous urban fabric,PO-4,Heat,Urban
+1,111,Continuous urban fabric,PO-3,Other,Urban
+1,111,Continuous urban fabric,PO-3,Flood,Urban
+1,111,Continuous urban fabric,PO-3,Drought,Urban
+1,111,Continuous urban fabric,PO-3,Heat,Urban
+1,111,Continuous urban fabric,PO-1,Other,Urban
+1,111,Continuous urban fabric,PO-1,Flood,Urban
+1,111,Continuous urban fabric,PO-1,Heat,Urban
+2,112,Discontinuous urban fabric,NA-10,Other,Urban
+2,112,Discontinuous urban fabric,CA-1,Flood,Urban
+2,112,Discontinuous urban fabric,WF-6,Other,Urban
+2,112,Discontinuous urban fabric,NA-16,Other,Urban
+2,112,Discontinuous urban fabric,NA-14,Other,Urban
+3,121,Industrial or commercial units,NA-10,Other,Urban
+4,122,Road and rail networks and associated land,ES-13,Sea level rise,Urban
+4,122,Road and rail networks and associated land,CA-1,Flood,Urban
+4,122,Road and rail networks and associated land,NA-2,Erosion,Urban
+4,122,Road and rail networks and associated land,ES-13,Other,Urban
+4,122,Road and rail networks and associated land,ES-13,Drought,Urban
+4,122,Road and rail networks and associated land,ES-13,Heat,Urban
+5,123,Port areas,WF-9,Other,Urban
+5,123,Port areas,ES-13,Heat,Urban
+5,123,Port areas,ES-13,Sea level rise,Urban
+5,123,Port areas,ES-13,Drought,Urban
+5,123,Port areas,ES-13,Other,Urban
+5,123,Port areas,ES-13,Heat,Urban
+5,123,Port areas,ES-13,Sea level rise,Urban
+5,123,Port areas,ES-13,Drought,Urban
+5,123,Port areas,ES-13,Other,Urban
+5,123,Port areas,FRI-5,Sea level rise,Urban
+5,123,Port areas,FRI-5,Drought,Urban
+5,123,Port areas,FRI-5,Flood,Urban
+5,123,Port areas,FRI-5,Erosion,Urban
+5,123,Port areas,FRI-5,Other,Urban
+5,123,Port areas,WF-9,Heat,Urban
+5,123,Port areas,WF-9,Drought,Urban
+7,131,Mineral extraction sites,ES-13,Other,Urban
+7,131,Mineral extraction sites,ES-13,Drought,Urban
+7,131,Mineral extraction sites,ES-13,Heat,Urban
+7,131,Mineral extraction sites,ES-7,Erosion,Urban
+7,131,Mineral extraction sites,ES-13,Sea level rise,Urban
+7,131,Mineral extraction sites,ES-7,Flood,Urban
+7,131,Mineral extraction sites,NA-13,Other,Urban
+8,132,Dump sites,ES-13,Other,Urban
+8,132,Dump sites,ES-13,Drought,Urban
+8,132,Dump sites,ES-13,Sea level rise,Urban
+8,132,Dump sites,ES-13,Heat,Urban
+9,133,Construction sites,FRI-4,Heat,Urban
+9,133,Construction sites,FRI-4,Other,Urban
+10,141,Green urban areas,NA-7,Heat,Urban
+10,141,Green urban areas,ES-13,Drought,Urban
+10,141,Green urban areas,CA-1,Flood,Urban
+10,141,Green urban areas,PO-6,Heat,Urban
+10,141,Green urban areas,PO-6,Erosion,Urban
+10,141,Green urban areas,PO-6,Flood,Urban
+10,141,Green urban areas,EF-4,Other,Urban
+10,141,Green urban areas,PO-6,Other,Urban
+10,141,Green urban areas,ES-23,Heat,Urban
+10,141,Green urban areas,ES-13,Other,Urban
+10,141,Green urban areas,ES-15,Other,Urban
+10,141,Green urban areas,ES-13,Sea level rise,Urban
+10,141,Green urban areas,ES-13,Heat,Urban
+10,141,Green urban areas,WF-13,Other,Urban
+11,142,Sport and leisure facilities,EF-4,Other,Urban
+12,211,Non-irrigated arable land,WF-3,Drought,Rural
+12,211,Non-irrigated arable land,WF-17,Heat,Rural
+12,211,Non-irrigated arable land,WF-17,Drought,Rural
+12,211,Non-irrigated arable land,NA-1,Heat,Rural
+12,211,Non-irrigated arable land,WF-8,Drought,Rural
+12,211,Non-irrigated arable land,WF-20,Other,Rural
+12,211,Non-irrigated arable land,WF-20,Drought,Rural
+12,211,Non-irrigated arable land,WF-17,Erosion,Rural
+12,211,Non-irrigated arable land,WF-17,Other,Rural
+12,211,Non-irrigated arable land,WF-2,Other,Rural
+12,211,Non-irrigated arable land,WF-2,Drought,Rural
+12,211,Non-irrigated arable land,NA-9,Erosion,Rural
+12,211,Non-irrigated arable land,WF-11,Drought,Rural
+12,211,Non-irrigated arable land,WF-12,Erosion,Rural
+12,211,Non-irrigated arable land,WF-12,Other,Rural
+12,211,Non-irrigated arable land,WF-16,Heat,Rural
+12,211,Non-irrigated arable land,WF-16,Drought,Rural
+12,211,Non-irrigated arable land,WF-16,Erosion,Rural
+12,211,Non-irrigated arable land,WF-16,Other,Rural
+12,211,Non-irrigated arable land,WF-4,Erosion,Rural
+12,211,Non-irrigated arable land,WF-4,Flood,Rural
+12,211,Non-irrigated arable land,WF-4,Drought,Rural
+12,211,Non-irrigated arable land,NA-1,Other,Rural
+12,211,Non-irrigated arable land,NA-1,Flood,Rural
+12,211,Non-irrigated arable land,WF-3,Erosion,Rural
+12,211,Non-irrigated arable land,WF-3,Flood,Rural
+12,211,Non-irrigated arable land,NA-1,Drought,Rural
+12,211,Non-irrigated arable land,WF-8,Other,Rural
+12,211,Non-irrigated arable land,WF-8,Flood,Rural
+13,212,Permanently irrigated land,WF-20,Drought,Rural
+13,212,Permanently irrigated land,WF-16,Other,Rural
+13,212,Permanently irrigated land,EF-1,Other,Rural
+13,212,Permanently irrigated land,WF-16,Heat,Rural
+13,212,Permanently irrigated land,WF-20,Other,Rural
+13,212,Permanently irrigated land,WF-8,Drought,Rural
+13,212,Permanently irrigated land,WF-8,Flood,Rural
+13,212,Permanently irrigated land,WF-8,Other,Rural
+13,212,Permanently irrigated land,WF-3,Erosion,Rural
+13,212,Permanently irrigated land,WF-3,Flood,Rural
+13,212,Permanently irrigated land,WF-3,Drought,Rural
+13,212,Permanently irrigated land,NA-17,Erosion,Rural
+13,212,Permanently irrigated land,WF-16,Erosion,Rural
+13,212,Permanently irrigated land,EF-1,Flood,Rural
+13,212,Permanently irrigated land,WF-18,Other,Rural
+13,212,Permanently irrigated land,WF-17,Other,Rural
+13,212,Permanently irrigated land,WF-17,Erosion,Rural
+13,212,Permanently irrigated land,WF-17,Drought,Rural
+13,212,Permanently irrigated land,WF-17,Heat,Rural
+13,212,Permanently irrigated land,NA-17,Drought,Rural
+13,212,Permanently irrigated land,FRI-1,Other,Rural
+13,212,Permanently irrigated land,FRI-1,Drought,Rural
+13,212,Permanently irrigated land,NA-17,Heat,Rural
+13,212,Permanently irrigated land,CA-1,Flood,Rural
+13,212,Permanently irrigated land,NA-17,Flood,Rural
+13,212,Permanently irrigated land,EF-5,Erosion,Rural
+13,212,Permanently irrigated land,EF-1,Erosion,Rural
+13,212,Permanently irrigated land,CA-2,Heat,Rural
+13,212,Permanently irrigated land,CA-2,Other,Rural
+13,212,Permanently irrigated land,EF-1,Drought,Rural
+13,212,Permanently irrigated land,CA-2,Flood,Rural
+13,212,Permanently irrigated land,WF-16,Drought,Rural
+13,212,Permanently irrigated land,CA-2,Drought,Rural
+16,222,Fruit trees and berry plantations,WF-4,Erosion,Rural
+16,222,Fruit trees and berry plantations,WF-4,Flood,Rural
+16,222,Fruit trees and berry plantations,WF-4,Drought,Rural
+18,231,Pastures,NA-1,Flood,Rural
+18,231,Pastures,NA-1,Other,Rural
+18,231,Pastures,NA-12,Drought,Rural
+18,231,Pastures,NA-12,Heat,Rural
+18,231,Pastures,CA-2,Flood,Rural
+18,231,Pastures,CA-2,Drought,Rural
+18,231,Pastures,WF-8,Other,Rural
+18,231,Pastures,WF-8,Flood,Rural
+18,231,Pastures,WF-8,Drought,Rural
+18,231,Pastures,EF-2,Flood,Rural
+18,231,Pastures,EF-3,Drought,Rural
+18,231,Pastures,EF-3,Flood,Rural
+18,231,Pastures,WF-7,Other,Rural
+18,231,Pastures,EF-5,Erosion,Rural
+18,231,Pastures,WF-3,Erosion,Rural
+18,231,Pastures,WF-3,Flood,Rural
+18,231,Pastures,WF-3,Drought,Rural
+18,231,Pastures,WF-21,Other,Rural
+18,231,Pastures,WF-21,Flood,Rural
+18,231,Pastures,WF-21,Drought,Rural
+18,231,Pastures,WF-20,Other,Rural
+18,231,Pastures,ES-14,Erosion,Rural
+18,231,Pastures,ES-14,Other,Rural
+18,231,Pastures,WF-20,Drought,Rural
+18,231,Pastures,ES-19,Fires,Rural
+18,231,Pastures,ES-19,Erosion,Rural
+18,231,Pastures,ES-2,Erosion,Rural
+18,231,Pastures,ES-2,Other,Rural
+18,231,Pastures,WF-17,Other,Rural
+18,231,Pastures,WF-17,Erosion,Rural
+18,231,Pastures,WF-17,Drought,Rural
+18,231,Pastures,WF-17,Heat,Rural
+18,231,Pastures,CA-2,Other,Rural
+18,231,Pastures,ES-25,Heat,Rural
+18,231,Pastures,ES-25,Drought,Rural
+18,231,Pastures,ES-25,Other,Rural
+18,231,Pastures,ES-4,Fires,Rural
+18,231,Pastures,ES-4,Other,Rural
+18,231,Pastures,ES-5,Other,Rural
+18,231,Pastures,WF-11,Drought,Rural
+18,231,Pastures,WF-10,Flood,Rural
+18,231,Pastures,WF-10,Drought,Rural
+18,231,Pastures,FRI-1,Drought,Rural
+18,231,Pastures,FRI-1,Other,Rural
+18,231,Pastures,FRI-2,Drought,Rural
+18,231,Pastures,FRI-2,Erosion,Rural
+18,231,Pastures,FRI-2,Other,Rural
+18,231,Pastures,NA-9,Erosion,Rural
+18,231,Pastures,NA-6,Heat,Rural
+18,231,Pastures,CA-2,Heat,Rural
+18,231,Pastures,NA-12,Other,Rural
+18,231,Pastures,NA-1,Heat,Rural
+18,231,Pastures,NA-1,Drought,Rural
+19,241,Annual crops associated with permanent crops,WF-20,Drought,Rural
+19,241,Annual crops associated with permanent crops,NA-1,Other,Rural
+19,241,Annual crops associated with permanent crops,NA-12,Other,Rural
+19,241,Annual crops associated with permanent crops,NA-9,Erosion,Rural
+19,241,Annual crops associated with permanent crops,WF-8,Flood,Rural
+19,241,Annual crops associated with permanent crops,WF-7,Other,Rural
+19,241,Annual crops associated with permanent crops,NA-1,Heat,Rural
+19,241,Annual crops associated with permanent crops,NA-1,Flood,Rural
+19,241,Annual crops associated with permanent crops,NA-12,Drought,Rural
+19,241,Annual crops associated with permanent crops,NA-1,Drought,Rural
+19,241,Annual crops associated with permanent crops,WF-20,Other,Rural
+19,241,Annual crops associated with permanent crops,NA-12,Heat,Rural
+19,241,Annual crops associated with permanent crops,WF-8,Drought,Rural
+19,241,Annual crops associated with permanent crops,CA-1,Flood,Rural
+19,241,Annual crops associated with permanent crops,WF-8,Other,Rural
+19,241,Annual crops associated with permanent crops,NA-16,Other,Rural
+20,242,Complex cultivation patterns,EF-1,Other,Rural
+20,242,Complex cultivation patterns,EF-1,Erosion,Rural
+20,242,Complex cultivation patterns,EF-1,Flood,Rural
+20,242,Complex cultivation patterns,WF-11,Drought,Rural
+20,242,Complex cultivation patterns,EF-3,Drought,Rural
+20,242,Complex cultivation patterns,EF-3,Flood,Rural
+20,242,Complex cultivation patterns,EF-1,Drought,Rural
+21,243,Land principally occupied by agriculture with significant areas,WF-11,Drought,Rural
+21,243,Land principally occupied by agriculture with significant areas,CA-2,Other,Rural
+21,243,Land principally occupied by agriculture with significant areas,EF-5,Erosion,Rural
+21,243,Land principally occupied by agriculture with significant areas,CA-2,Flood,Rural
+21,243,Land principally occupied by agriculture with significant areas,DK-7,Other,Rural
+21,243,Land principally occupied by agriculture with significant areas,DK-8,Other,Rural
+21,243,Land principally occupied by agriculture with significant areas,DK-9,Heat,Rural
+21,243,Land principally occupied by agriculture with significant areas,CA-2,Drought,Rural
+21,243,Land principally occupied by agriculture with significant areas,CA-2,Heat,Rural
+21,243,Land principally occupied by agriculture with significant areas,DK-9,Flood,Rural
+21,243,Land principally occupied by agriculture with significant areas,DK-3,Flood,Rural
+22,244,Agro-forestry areas,ES-4,Fires,
+22,244,Agro-forestry areas,ES-19,Erosion,
+22,244,Agro-forestry areas,ES-19,Fires,
+22,244,Agro-forestry areas,ES-4,Other,
+22,244,Agro-forestry areas,CA-1,Flood,
+22,244,Agro-forestry areas,CA-2,Other,
+22,244,Agro-forestry areas,CA-2,Flood,
+22,244,Agro-forestry areas,CA-2,Drought,
+22,244,Agro-forestry areas,CA-2,Heat,
+23,311,Broad-leaved forest,ES-10,Erosion,Mountainous
+23,311,Broad-leaved forest,ES-20,Erosion,Mountainous
+23,311,Broad-leaved forest,ES-10,Other,Mountainous
+23,311,Broad-leaved forest,ES-20,Other,Mountainous
+23,311,Broad-leaved forest,ES-17,Flood,Mountainous
+23,311,Broad-leaved forest,ES-17,Erosion,Mountainous
+23,311,Broad-leaved forest,ES-20,Heat,Mountainous
+23,311,Broad-leaved forest,ES-20,Flood,Mountainous
+23,311,Broad-leaved forest,ES-10,Fires,Mountainous
+23,311,Broad-leaved forest,ES-10,Drought,Mountainous
+24,312,Coniferous forest,ES-3,Fires,
+24,312,Coniferous forest,CA-1,Flood,
+24,312,Coniferous forest,ES-3,Erosion,
+24,312,Coniferous forest,ES-3,Other,
+24,312,Coniferous forest,ES-17,Erosion,
+24,312,Coniferous forest,ES-17,Flood,
+25,313,Mixed forest,EF-4,Other,
+25,313,Mixed forest,ES-17,Flood,
+25,313,Mixed forest,CA-2,Drought,
+25,313,Mixed forest,ES-18,Other,
+25,313,Mixed forest,ES-18,Erosion,
+25,313,Mixed forest,ES-18,Flood,
+25,313,Mixed forest,ES-18,Drought,
+25,313,Mixed forest,ES-18,Heat,
+25,313,Mixed forest,ES-17,Erosion,
+25,313,Mixed forest,CA-2,Flood,
+25,313,Mixed forest,CA-2,Heat,
+25,313,Mixed forest,CA-2,Other,
+25,313,Mixed forest,NA-9,Erosion,
+26,321,Natural grasslands,ES-1,Other,Mountainous
+26,321,Natural grasslands,NA-12,Heat,Mountainous
+26,321,Natural grasslands,FRI-2,Drought,Mountainous
+26,321,Natural grasslands,FRI-2,Erosion,Mountainous
+26,321,Natural grasslands,FRI-2,Other,Mountainous
+26,321,Natural grasslands,NA-12,Drought,Mountainous
+26,321,Natural grasslands,WF-10,Drought,Mountainous
+26,321,Natural grasslands,NA-12,Other,Mountainous
+26,321,Natural grasslands,WF-10,Flood,Mountainous
+26,321,Natural grasslands,WF-8,Drought,Mountainous
+26,321,Natural grasslands,EF-3,Flood,Mountainous
+26,321,Natural grasslands,WF-5,Other,Mountainous
+26,321,Natural grasslands,WF-5,Heat,Mountainous
+26,321,Natural grasslands,EF-3,Drought,Mountainous
+26,321,Natural grasslands,FRI-5,Sea level rise,Mountainous
+26,321,Natural grasslands,FRI-5,Drought,Mountainous
+26,321,Natural grasslands,FRI-5,Flood,Mountainous
+26,321,Natural grasslands,FRI-5,Erosion,Mountainous
+26,321,Natural grasslands,FRI-5,Other,Mountainous
+26,321,Natural grasslands,DK-2,Other,Mountainous
+26,321,Natural grasslands,WF-8,Flood,Mountainous
+26,321,Natural grasslands,NA-5,Other,Mountainous
+26,321,Natural grasslands,WF-8,Other,Mountainous
+26,321,Natural grasslands,DK-2,Flood,Mountainous
+26,321,Natural grasslands,EF-2,Flood,Mountainous
+26,321,Natural grasslands,WF-21,Other,Mountainous
+26,321,Natural grasslands,WF-21,Flood,Mountainous
+26,321,Natural grasslands,ES-19,Fires,Mountainous
+26,321,Natural grasslands,ES-19,Erosion,Mountainous
+26,321,Natural grasslands,NA-3,Other,Mountainous
+26,321,Natural grasslands,ES-2,Erosion,Mountainous
+26,321,Natural grasslands,ES-2,Other,Mountainous
+26,321,Natural grasslands,NA-2,Erosion,Mountainous
+26,321,Natural grasslands,WF-21,Drought,Mountainous
+26,321,Natural grasslands,ES-14,Erosion,Mountainous
+26,321,Natural grasslands,ES-14,Other,Mountainous
+26,321,Natural grasslands,ES-15,Other,Mountainous
+27,322,Moors and heathland,ES-19,Erosion,
+27,322,Moors and heathland,EF-3,Drought,
+27,322,Moors and heathland,ES-14,Other,
+27,322,Moors and heathland,EF-3,Flood,
+27,322,Moors and heathland,NA-4,Flood,
+27,322,Moors and heathland,ES-19,Fires,
+27,322,Moors and heathland,ES-14,Erosion,
+29,324,Transitional woodland-shrub,WF-1,Other,
+29,324,Transitional woodland-shrub,ES-4,Other,
+29,324,Transitional woodland-shrub,WF-14,Other,
+29,324,Transitional woodland-shrub,EF-4,Other,
+29,324,Transitional woodland-shrub,ES-4,Fires,
+30,331,Beaches,WF-5,Heat,Coastal
+30,331,Beaches,FRI-5,Drought,Coastal
+30,331,Beaches,FRI-5,Sea level rise,Coastal
+30,331,Beaches,CA-1,Flood,Coastal
+30,331,Beaches,WF-5,Other,Coastal
+30,331,Beaches,NA-2,Erosion,Coastal
+30,331,Beaches,FRI-5,Other,Coastal
+30,331,Beaches,FRI-5,Erosion,Coastal
+30,331,Beaches,FRI-5,Flood,Coastal
+31,332,Bare rocks,NA-7,Heat,
+31,332,Bare rocks,ES-4,Fires,
+31,332,Bare rocks,FRI-5,Flood,
+31,332,Bare rocks,FRI-5,Erosion,
+31,332,Bare rocks,FRI-5,Other,
+31,332,Bare rocks,ES-4,Other,
+31,332,Bare rocks,FRI-5,Sea level rise,
+31,332,Bare rocks,FRI-5,Drought,
+32,333,Sparsely vegetated areas,ES-6,Drought,
+32,333,Sparsely vegetated areas,ES-1,Other,
+32,333,Sparsely vegetated areas,ES-4,Fires,
+32,333,Sparsely vegetated areas,ES-4,Other,
+32,333,Sparsely vegetated areas,ES-6,Fires,
+32,333,Sparsely vegetated areas,ES-6,Erosion,
+32,333,Sparsely vegetated areas,ES-6,Other,
+32,333,Sparsely vegetated areas,FRI-5,Sea level rise,
+32,333,Sparsely vegetated areas,FRI-5,Drought,
+32,333,Sparsely vegetated areas,FRI-5,Flood,
+32,333,Sparsely vegetated areas,FRI-5,Erosion,
+32,333,Sparsely vegetated areas,FRI-5,Other,
+32,333,Sparsely vegetated areas,NA-11,Flood,
+32,333,Sparsely vegetated areas,NA-11,Other,
+32,333,Sparsely vegetated areas,NA-2,Erosion,
+32,333,Sparsely vegetated areas,NA-3,Other,
+32,333,Sparsely vegetated areas,NA-7,Heat,
+32,333,Sparsely vegetated areas,CA-1,Flood,
+33,334,Burnt areas,ES-6,Erosion,
+33,334,Burnt areas,ES-6,Drought,
+33,334,Burnt areas,ES-4,Other,
+33,334,Burnt areas,ES-6,Other,
+33,334,Burnt areas,ES-4,Fires,
+33,334,Burnt areas,ES-6,Fires,
+35,411,Inland marshes,DK-1,Other,Coastal
+35,411,Inland marshes,DK-1,Flood,Coastal
+35,411,Inland marshes,EF-2,Flood,Coastal
+35,411,Inland marshes,EF-3,Drought,Coastal
+35,411,Inland marshes,EF-3,Flood,Coastal
+35,411,Inland marshes,EF-4,Other,Coastal
+35,411,Inland marshes,ES-12,Erosion,Coastal
+35,411,Inland marshes,ES-12,Other,Coastal
+35,411,Inland marshes,ES-13,Heat,Coastal
+35,411,Inland marshes,ES-13,Sea level rise,Coastal
+35,411,Inland marshes,ES-13,Drought,Coastal
+35,411,Inland marshes,ES-13,Other,Coastal
+35,411,Inland marshes,WF-3,Erosion,Coastal
+35,411,Inland marshes,WF-3,Flood,Coastal
+35,411,Inland marshes,NA-16,Other,Coastal
+35,411,Inland marshes,CA-1,Flood,Coastal
+35,411,Inland marshes,NA-1,Other,Coastal
+35,411,Inland marshes,NA-1,Flood,Coastal
+35,411,Inland marshes,NA-1,Drought,Coastal
+35,411,Inland marshes,NA-1,Heat,Coastal
+35,411,Inland marshes,NA-9,Erosion,Coastal
+35,411,Inland marshes,NA-12,Heat,Coastal
+35,411,Inland marshes,NA-12,Drought,Coastal
+35,411,Inland marshes,NA-12,Heat,Coastal
+35,411,Inland marshes,NA-12,Other,Coastal
+35,411,Inland marshes,NA-12,Drought,Coastal
+35,411,Inland marshes,ES-7,Flood,Coastal
+35,411,Inland marshes,ES-7,Erosion,Coastal
+35,411,Inland marshes,WF-11,Drought,Coastal
+35,411,Inland marshes,WF-10,Flood,Coastal
+35,411,Inland marshes,WF-10,Drought,Coastal
+35,411,Inland marshes,WF-3,Drought,Coastal
+35,411,Inland marshes,NA-12,Other,Coastal
+35,411,Inland marshes,ES-15,Other,Coastal
+35,411,Inland marshes,NA-6,Heat,Coastal
+36,412,Peat bogs,DK-9,Flood,
+36,412,Peat bogs,FRI-2,Other,
+36,412,Peat bogs,FRI-1,Drought,
+36,412,Peat bogs,FRI-2,Erosion,
+36,412,Peat bogs,ES-2,Erosion,
+36,412,Peat bogs,FRI-2,Drought,
+36,412,Peat bogs,ES-2,Other,
+36,412,Peat bogs,DK-7,Other,
+36,412,Peat bogs,FRI-1,Other,
+36,412,Peat bogs,DK-9,Heat,
+36,412,Peat bogs,DK-8,Other,
+37,421,Salt marshes,ES-13,Drought,Coastal
+37,421,Salt marshes,FRI-5,Other,Coastal
+37,421,Salt marshes,FRI-5,Erosion,Coastal
+37,421,Salt marshes,FRI-5,Flood,Coastal
+37,421,Salt marshes,FRI-5,Drought,Coastal
+37,421,Salt marshes,FRI-5,Sea level rise,Coastal
+37,421,Salt marshes,ES-8,Erosion,Coastal
+37,421,Salt marshes,ES-8,Flood,Coastal
+37,421,Salt marshes,ES-21,Erosion,Coastal
+37,421,Salt marshes,ES-21,Flood,Coastal
+37,421,Salt marshes,ES-21,Sea level rise,Coastal
+37,421,Salt marshes,ES-13,Other,Coastal
+37,421,Salt marshes,ES-13,Sea level rise,Coastal
+37,421,Salt marshes,ES-13,Heat,Coastal
+37,421,Salt marshes,WF-8,Other,Coastal
+37,421,Salt marshes,WF-8,Flood,Coastal
+37,421,Salt marshes,WF-8,Drought,Coastal
+37,421,Salt marshes,ES-12,Other,Coastal
+37,421,Salt marshes,ES-12,Erosion,Coastal
+37,421,Salt marshes,WF-5,Heat,Coastal
+37,421,Salt marshes,WF-5,Other,Coastal
+38,422,Salines,WF-7,Other,Coastal
+39,423,Intertidal flats,FRI-5,Other,Coastal
+39,423,Intertidal flats,FRI-5,Erosion,Coastal
+39,423,Intertidal flats,FRI-5,Sea level rise,Coastal
+39,423,Intertidal flats,FRI-5,Drought,Coastal
+39,423,Intertidal flats,FRI-5,Flood,Coastal
+40,511,Water courses,EF-1,Erosion,Coastal
+40,511,Water courses,PO-2,Flood,Coastal
+40,511,Water courses,FRI-5,Sea level rise,Coastal
+40,511,Water courses,WF-7,Other,Coastal
+40,511,Water courses,EF-3,Flood,Coastal
+40,511,Water courses,EF-3,Drought,Coastal
+40,511,Water courses,PO-2,Other,Coastal
+40,511,Water courses,ES-24,Other,Coastal
+40,511,Water courses,FRI-5,Drought,Coastal
+40,511,Water courses,FRI-5,Flood,Coastal
+40,511,Water courses,EF-2,Flood,Coastal
+40,511,Water courses,FRI-5,Erosion,Coastal
+40,511,Water courses,EF-1,Other,Coastal
+40,511,Water courses,ES-24,Flood,Coastal
+40,511,Water courses,ES-24,Drought,Coastal
+40,511,Water courses,ES-24,Heat,Coastal
+40,511,Water courses,CA-2,Other,Coastal
+40,511,Water courses,FRI-5,Other,Coastal
+40,511,Water courses,WF-8,Other,Coastal
+40,511,Water courses,WF-1,Other,Coastal
+40,511,Water courses,ES-20,Other,Coastal
+40,511,Water courses,ES-20,Erosion,Coastal
+40,511,Water courses,ES-20,Flood,Coastal
+40,511,Water courses,ES-20,Heat,Coastal
+40,511,Water courses,CA-2,Flood,Coastal
+40,511,Water courses,PO-2,Drought,Coastal
+40,511,Water courses,FRI-1,Drought,Coastal
+40,511,Water courses,WF-19,Heat,Coastal
+40,511,Water courses,WF-19,Drought,Coastal
+40,511,Water courses,WF-19,Other,Coastal
+40,511,Water courses,FRI-1,Other,Coastal
+40,511,Water courses,ES-16,Erosion,Coastal
+40,511,Water courses,ES-16,Flood,Coastal
+40,511,Water courses,NA-4,Flood,Coastal
+40,511,Water courses,WF-10,Drought,Coastal
+40,511,Water courses,PO-2,Heat,Coastal
+40,511,Water courses,DK-1,Flood,Coastal
+40,511,Water courses,DK-1,Other,Coastal
+40,511,Water courses,WF-20,Drought,Coastal
+40,511,Water courses,WF-20,Other,Coastal
+40,511,Water courses,CA-2,Heat,Coastal
+40,511,Water courses,WF-8,Flood,Coastal
+40,511,Water courses,WF-8,Drought,Coastal
+40,511,Water courses,NA-9,Erosion,Coastal
+40,511,Water courses,NA-8,Erosion,Coastal
+40,511,Water courses,WF-21,Drought,Coastal
+40,511,Water courses,WF-21,Flood,Coastal
+40,511,Water courses,WF-21,Other,Coastal
+40,511,Water courses,NA-3,Other,Coastal
+40,511,Water courses,WF-13,Other,Coastal
+40,511,Water courses,CA-2,Drought,Coastal
+40,511,Water courses,WF-10,Flood,Coastal
+40,511,Water courses,ES-4,Other,Coastal
+40,511,Water courses,NA-17,Erosion,Coastal
+40,511,Water courses,NA-17,Flood,Coastal
+40,511,Water courses,FRI-2,Other,Coastal
+40,511,Water courses,FRI-2,Erosion,Coastal
+40,511,Water courses,CA-1,Flood,Coastal
+40,511,Water courses,FRI-2,Drought,Coastal
+40,511,Water courses,ES-4,Fires,Coastal
+40,511,Water courses,WF-3,Drought,Coastal
+40,511,Water courses,WF-3,Flood,Coastal
+40,511,Water courses,WF-3,Erosion,Coastal
+40,511,Water courses,NA-1,Heat,Coastal
+40,511,Water courses,NA-1,Drought,Coastal
+40,511,Water courses,NA-17,Drought,Coastal
+40,511,Water courses,NA-17,Heat,Coastal
+40,511,Water courses,EF-1,Drought,Coastal
+40,511,Water courses,ES-11,Erosion,Coastal
+40,511,Water courses,EF-1,Flood,Coastal
+40,511,Water courses,ES-11,Flood,Coastal
+40,511,Water courses,EF-5,Erosion,Coastal
+40,511,Water courses,EF-4,Other,Coastal
+40,511,Water courses,NA-1,Flood,Coastal
+40,511,Water courses,NA-1,Other,Coastal
+41,512,Water bodies,ES-9,Other,Coastal
+41,512,Water bodies,ES-7,Erosion,Coastal
+41,512,Water bodies,ES-7,Flood,Coastal
+41,512,Water bodies,WF-14,Other,Coastal
+41,512,Water bodies,ES-2,Other,Coastal
+41,512,Water bodies,ES-2,Erosion,Coastal
+41,512,Water bodies,ES-14,Other,Coastal
+41,512,Water bodies,ES-14,Erosion,Coastal
+41,512,Water bodies,FRI-5,Sea level rise,Coastal
+41,512,Water bodies,EF-1,Other,Coastal
+41,512,Water bodies,EF-1,Erosion,Coastal
+41,512,Water bodies,EF-1,Flood,Coastal
+41,512,Water bodies,FRI-5,Drought,Coastal
+41,512,Water bodies,FRI-5,Flood,Coastal
+41,512,Water bodies,FRI-5,Erosion,Coastal
+41,512,Water bodies,FRI-5,Other,Coastal
+41,512,Water bodies,EF-1,Drought,Coastal
+41,512,Water bodies,EF-4,Other,Coastal
+41,512,Water bodies,EF-3,Flood,Coastal
+41,512,Water bodies,EF-3,Drought,Coastal
+41,512,Water bodies,CA-1,Flood,Coastal
+42,521,Coastal lagoons,ES-12,Erosion,Coastal
+42,521,Coastal lagoons,ES-12,Other,Coastal
+42,521,Coastal lagoons,ES-13,Heat,Coastal
+42,521,Coastal lagoons,ES-13,Sea level rise,Coastal
+42,521,Coastal lagoons,ES-13,Drought,Coastal
+42,521,Coastal lagoons,ES-13,Other,Coastal
+42,521,Coastal lagoons,ES-15,Other,Coastal
+43,522,Estuaries,ES-21,Sea level rise,Coastal
+43,522,Estuaries,ES-21,Flood,Coastal
+43,522,Estuaries,ES-21,Erosion,Coastal
+43,522,Estuaries,CA-1,Flood,Coastal
+44,523,Sea and ocean,CA-1,Flood,Coastal
+44,523,Sea and ocean,FRI-5,Drought,Coastal
+44,523,Sea and ocean,FRI-5,Flood,Coastal
+44,523,Sea and ocean,FRI-5,Other,Coastal
+44,523,Sea and ocean,FRI-5,Erosion,Coastal
+44,523,Sea and ocean,FRI-5,Sea level rise,Coastal
