@@ -16,6 +16,7 @@ from processes.utils import load_reclass_table
 from processes.utils.geoserver import publish_and_respond
 from processes.utils.raster import aggregate_raster_histogram_to_hexagons
 from processes.utils.session import load_session
+from processes.utils.geoserver import republish_layer, create_viewer_output
 
 logger = logging.getLogger(__name__)
 
@@ -278,8 +279,25 @@ def main_handler(session_id: str, archetype: str, hazard: str) -> list:
     hexagons.to_file(hexgrid_path, layer=layer_name, driver='GPKG', mode='w')
     logger.info('NBS / histogram columns written to %s', hexgrid_path)
 
-    return publish_and_respond(
-        hexgrid_path,
+    # remove publish_and_respond from this handler's publish path
+    store_name = f'hexagons_{archetype_lower}_{session_id}'
+    published_layer = f'{store_name}_nbs'
+    wms_url = cfg.geoserver.public_url
+    
+    ok = republish_layer(
+        store=store_name,
+        layer_name=published_layer,
+        title='NbS Overview',
+        native_name=layer_name,   # GPKG table name from fiona (see below)
+        style_name=None,          # skip style — viewer paints MVT
+        workspace='tmp',
+    )
+    if not ok:
+        raise RuntimeError(f'Failed to publish NbS layer {published_layer!r}')
+    
+    return create_viewer_output(
+        [published_layer],
         'NBS per UOM',
-        {'nbs': 'NBS per UOM'},
+        {archetype_lower: 'NbS Overview'},  # see note on naming below
+        wms_url,
     )
