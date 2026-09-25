@@ -288,8 +288,8 @@ def main_handler(session_id: str, archetype: str, hazard: str) -> list:
         store=store_name,
         layer_name=published_layer,
         title='NbS Overview',
-        # native_name defaults to store (= GPKG feature type), same as uomkcs
-        style_name='hexagon_transparant',  # or any existing style; viewer styles MVT client-side
+        native_name=layer_name,   # GPKG table name from fiona (see below)
+        style_name=None,          # skip style — viewer paints MVT
         workspace='tmp',
     )
     if not ok:
