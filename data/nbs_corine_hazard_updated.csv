@@ -1,284 +1,284 @@
-clc;lu;nbs_description;nbs_code;hazard;landscape_case
-1;111;Urban green corridor creation;ES-22;Flood;Urban
-1;111;Urban green corridor creation;ES-22;Heat;Urban
-1;111;Slope stabilization planting;NA-7;Heat;Urban
-1;111;Green roofs;PO-1;Flood;Urban
-1;111;Green roofs;PO-1;Heat;Urban
-1;111;Urban park with stormwater retention;PO-3;Flood;Urban
-1;111;Urban park with stormwater retention;PO-3;Heat;Urban
-1;111;Urban park with stormwater retention;PO-3;Drought;Urban
-1;111;Urban park with stormwater retention;PO-4;Flood;Urban
-1;111;Urban park with stormwater retention;PO-4;Heat;Urban
-1;111;Urban park with stormwater retention;PO-4;Drought;Urban
-1;111;Green roof (large-scale);PO-5;Flood;Urban
-1;111;Green roof (large-scale);PO-5;Heat;Urban
-1;111;Urban river creation;WF-9;Heat;Urban
-1;111;Urban river creation;WF-9;Drought;Urban
-2;112;Flood interceptor channel;CA-1;Flood;Coastal
-2;112;Rainwater basin (SuDS);DK-6;Flood;Urban
-4;122;Flood interceptor channel;CA-1;Flood;Coastal
-4;122;Coastal wetland restoration;ES-13;Drought;Coastal
-5;123;Coastal wetland restoration;ES-13;Drought;Coastal
-5;123;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-5;123;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-5;123;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-5;123;Urban river creation;WF-9;Heat;Urban
-5;123;Urban river creation;WF-9;Drought;Urban
-7;131;Coastal wetland restoration;ES-13;Drought;Coastal
-7;131;Wetland restoration;ES-7;Flood;Rural
-8;132;Coastal wetland restoration;ES-13;Drought;Coastal
-9;133;Bio-based material use;FRI-4;Heat;Urban
-10;141;Flood interceptor channel;CA-1;Flood;Coastal
-10;141;Rainwater retention lake;DK-5;Flood;Urban
-10;141;Coastal wetland restoration;ES-13;Drought;Coastal
-10;141;Urban biodiversity habitat creation;ES-23;Heat;Urban
-10;141;Slope stabilization planting;NA-7;Heat;Urban
-10;141;Urban afforestation;PO-6;Flood;Urban
-10;141;Urban afforestation;PO-6;Heat;Urban
-11;142;Rainwater basin (SuDS);DK-6;Flood;Urban
-12;211;Wetland creation;DK-9;Flood;Rural
-12;211;Water storage and controlled release;NA-1;Flood;Rural
-12;211;Water storage and controlled release;NA-1;Heat;Rural
-12;211;Water storage and controlled release;NA-1;Drought;Rural
-12;211;Hedge planting;NA-4;Flood;Rural
-12;211;Aquifer recharge;WF-11;Drought;Rural
-12;211;No-tillage agriculture;WF-16;Heat;Rural
-12;211;No-tillage agriculture;WF-16;Drought;Rural
-12;211;Carbon farming;WF-17;Heat;Rural
-12;211;Carbon farming;WF-17;Drought;Rural
-12;211;Willow wetland system;WF-2;Drought;Rural
-12;211;Differentiated mowing;WF-20;Drought;Rural
-12;211;Buffer strips;WF-3;Flood;Rural
-12;211;Buffer strips;WF-3;Drought;Rural
-12;211;Vegetation-based dams;WF-4;Flood;Rural
-12;211;Vegetation-based dams;WF-4;Drought;Rural
-12;211;Adaptive water level management;WF-8;Drought;Coastal
-12;211;Adaptive water level management;WF-8;Salinisation;Coastal
-12;211;Adaptive water level management;WF-8;Flood;Coastal
-13;212;Flood interceptor channel;CA-1;Flood;Coastal
-13;212;Green corridor infrastructure;CA-2;Flood;Rural
-13;212;Green corridor infrastructure;CA-2;Heat;Rural
-13;212;Green corridor infrastructure;CA-2;Drought;Rural
-13;212;Wetland verge construction;EF-1;Flood;Rural
-13;212;Wetland verge construction;EF-1;Drought;Rural
-13;212;Stream re-meandering;FRI-1;Drought;Rural
-13;212;Wet meadow restoration;NA-17;Flood;Rural
-13;212;Wet meadow restoration;NA-17;Drought;Rural
-13;212;No-tillage agriculture;WF-16;Heat;Rural
-13;212;No-tillage agriculture;WF-16;Drought;Rural
-13;212;Carbon farming;WF-17;Heat;Rural
-13;212;Carbon farming;WF-17;Drought;Rural
-13;212;Differentiated mowing;WF-20;Drought;Rural
-13;212;Buffer strips;WF-3;Flood;Rural
-13;212;Buffer strips;WF-3;Drought;Rural
-13;212;Adaptive water level management;WF-8;Drought;Coastal
-13;212;Adaptive water level management;WF-8;Salinisation;Coastal
-13;212;Adaptive water level management;WF-8;Flood;Coastal
-16;222;Vegetation-based dams;WF-4;Flood;Rural
-16;222;Vegetation-based dams;WF-4;Drought;Rural
-18;231;Green corridor infrastructure;CA-2;Flood;Rural
-18;231;Green corridor infrastructure;CA-2;Heat;Rural
-18;231;Green corridor infrastructure;CA-2;Drought;Rural
-18;231;Soil improvement;EF-2;Flood;Rural
-18;231;Water level increase for nature restoration;EF-3;Flood;Rural
-18;231;Water level increase for nature restoration;EF-3;Drought;Rural
-18;231;Floating wetland;ES-25;Heat;Rural
-18;231;Floating wetland;ES-25;Drought;Rural
-18;231;Stream re-meandering;FRI-1;Drought;Rural
-18;231;Adaptive water level management;FRI-2;Drought;Rural
-18;231;Water storage and controlled release;NA-1;Flood;Rural
-18;231;Water storage and controlled release;NA-1;Heat;Rural
-18;231;Water storage and controlled release;NA-1;Drought;Rural
-18;231;Marsh restoration with grazing;NA-12;Heat;Rural
-18;231;Marsh restoration with grazing;NA-12;Drought;Rural
-18;231;Land use change with grazing management;NA-6;Flood;Rural
-18;231;Reed swamp creation;WF-10;Flood;Rural
-18;231;Reed swamp creation;WF-10;Drought;Rural
-18;231;Aquifer recharge;WF-11;Drought;Rural
-18;231;Carbon farming;WF-17;Heat;Rural
-18;231;Carbon farming;WF-17;Drought;Rural
-18;231;Differentiated mowing;WF-20;Drought;Rural
-18;231;Water retention basin;WF-21;Flood;Rural
-18;231;Water retention basin;WF-21;Drought;Rural
-18;231;Buffer strips;WF-3;Flood;Rural
-18;231;Buffer strips;WF-3;Drought;Rural
-18;231;Salinity control ditch system;WF-7;Salinisation;Coastal
-18;231;Adaptive water level management;WF-8;Drought;Coastal
-18;231;Adaptive water level management;WF-8;Salinisation;Coastal
-18;231;Adaptive water level management;WF-8;Flood;Coastal
-19;241;Flood interceptor channel;CA-1;Flood;Coastal
-19;241;Water storage and controlled release;NA-1;Flood;Rural
-19;241;Water storage and controlled release;NA-1;Heat;Rural
-19;241;Water storage and controlled release;NA-1;Drought;Rural
-19;241;Marsh restoration with grazing;NA-12;Heat;Rural
-19;241;Marsh restoration with grazing;NA-12;Drought;Rural
-19;241;Differentiated mowing;WF-20;Drought;Rural
-19;241;Salinity control ditch system;WF-7;Salinisation;Coastal
-19;241;Adaptive water level management;WF-8;Drought;Coastal
-19;241;Adaptive water level management;WF-8;Salinisation;Coastal
-19;241;Adaptive water level management;WF-8;Flood;Coastal
-20;242;Wetland verge construction;EF-1;Flood;Rural
-20;242;Wetland verge construction;EF-1;Drought;Rural
-20;242;Water level increase for nature restoration;EF-3;Flood;Rural
-20;242;Water level increase for nature restoration;EF-3;Drought;Rural
-20;242;Wet meadow restoration;NA-17;Flood;Rural
-20;242;Wet meadow restoration;NA-17;Drought;Rural
-20;242;Aquifer recharge;WF-11;Drought;Rural
-21;243;Green corridor infrastructure;CA-2;Flood;Rural
-21;243;Green corridor infrastructure;CA-2;Heat;Rural
-21;243;Green corridor infrastructure;CA-2;Drought;Rural
-21;243;Flood retention basin;DK-3;Flood;Urban
-21;243;Rainwater retention lake;DK-5;Flood;Urban
-21;243;Wetland creation;DK-9;Flood;Rural
-21;243;Aquifer recharge;WF-11;Drought;Rural
-22;244;Flood interceptor channel;CA-1;Flood;Coastal
-22;244;Green corridor infrastructure;CA-2;Flood;Rural
-22;244;Green corridor infrastructure;CA-2;Heat;Rural
-22;244;Green corridor infrastructure;CA-2;Drought;Rural
-23;311;Sustainable forest management;ES-10;Drought;Rural
-23;311;Riparian vegetation restoration;ES-17;Flood;Rural
-23;311;Riparian forest conservation;ES-20;Flood;Rural
-23;311;Riparian forest conservation;ES-20;Heat;Rural
-23;311;Riparian forest conservation;ES-20;Drought;Rural
-24;312;Flood interceptor channel;CA-1;Flood;Coastal
-24;312;Riparian vegetation restoration;ES-17;Flood;Rural
-25;313;Green corridor infrastructure;CA-2;Flood;Rural
-25;313;Green corridor infrastructure;CA-2;Heat;Rural
-25;313;Green corridor infrastructure;CA-2;Drought;Rural
-25;313;Riparian vegetation restoration;ES-17;Flood;Rural
-25;313;Forest conservation;ES-18;Flood;Rural
-25;313;Forest conservation;ES-18;Drought;Rural
-26;321;Water retention system for stormwater;DK-2;Flood;Urban
-26;321;Soil improvement;EF-2;Flood;Rural
-26;321;Water level increase for nature restoration;EF-3;Flood;Rural
-26;321;Water level increase for nature restoration;EF-3;Drought;Rural
-26;321;Adaptive water level management;FRI-2;Drought;Rural
-26;321;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-26;321;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-26;321;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-26;321;Marsh restoration with grazing;NA-12;Heat;Rural
-26;321;Marsh restoration with grazing;NA-12;Drought;Rural
-26;321;Reed swamp creation;WF-10;Flood;Rural
-26;321;Reed swamp creation;WF-10;Drought;Rural
-26;321;Water retention basin;WF-21;Flood;Rural
-26;321;Water retention basin;WF-21;Drought;Rural
-26;321;Dune and wetland restoration;WF-5;Heat;Coastal
-26;321;Adaptive water level management;WF-8;Drought;Coastal
-26;321;Adaptive water level management;WF-8;Salinisation;Coastal
-26;321;Adaptive water level management;WF-8;Flood;Coastal
-27;322;Water level increase for nature restoration;EF-3;Flood;Rural
-27;322;Water level increase for nature restoration;EF-3;Drought;Rural
-27;322;Hedge planting;NA-4;Flood;Rural
-30;331;Flood interceptor channel;CA-1;Flood;Coastal
-30;331;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-30;331;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-30;331;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-30;331;Dune and wetland restoration;WF-5;Heat;Coastal
-31;332;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-31;332;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-31;332;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-31;332;Slope stabilization planting;NA-7;Heat;Urban
-32;333;Flood interceptor channel;CA-1;Flood;Coastal
-32;333;Forest restoration;ES-6;Drought;Rural
-32;333;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-32;333;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-32;333;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-32;333;Stream restoration and wetland creation;NA-11;Flood;Rural
-32;333;Slope stabilization planting;NA-7;Heat;Urban
-33;334;Forest restoration;ES-6;Drought;Rural
-35;411;Flood interceptor channel;CA-1;Flood;Coastal
-35;411;Water retention basins;DK-1;Flood;Rural/urban
-35;411;Soil improvement;EF-2;Flood;Rural
-35;411;Water level increase for nature restoration;EF-3;Flood;Rural
-35;411;Water level increase for nature restoration;EF-3;Drought;Rural
-35;411;Coastal wetland restoration;ES-13;Drought;Coastal
-35;411;Wetland restoration;ES-7;Flood;Rural
-35;411;Water storage and controlled release;NA-1;Flood;Rural
-35;411;Water storage and controlled release;NA-1;Heat;Rural
-35;411;Water storage and controlled release;NA-1;Drought;Rural
-35;411;Marsh restoration with grazing;NA-12;Heat;Rural
-35;411;Marsh restoration with grazing;NA-12;Drought;Rural
-35;411;Land use change with grazing management;NA-6;Flood;Rural
-35;411;Reed swamp creation;WF-10;Flood;Rural
-35;411;Reed swamp creation;WF-10;Drought;Rural
-35;411;Aquifer recharge;WF-11;Drought;Rural
-35;411;Buffer strips;WF-3;Flood;Rural
-35;411;Buffer strips;WF-3;Drought;Rural
-36;412;Wetland creation;DK-9;Flood;Rural
-36;412;Stream re-meandering;FRI-1;Drought;Rural
-36;412;Adaptive water level management;FRI-2;Drought;Rural
-37;421;Coastal wetland restoration;ES-13;Drought;Coastal
-37;421;Tidal regime restoration;ES-21;Flood;Coastal
-37;421;Coastal wetland restoration;ES-8;Flood;Coastal
-37;421;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-37;421;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-37;421;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-37;421;Dune and wetland restoration;WF-5;Heat;Coastal
-37;421;Adaptive water level management;WF-8;Drought;Coastal
-37;421;Adaptive water level management;WF-8;Salinisation;Coastal
-37;421;Adaptive water level management;WF-8;Flood;Coastal
-38;422;Salinity control ditch system;WF-7;Salinisation;Coastal
-39;423;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-39;423;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-39;423;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-40;511;Flood interceptor channel;CA-1;Flood;Coastal
-40;511;Green corridor infrastructure;CA-2;Flood;Rural
-40;511;Green corridor infrastructure;CA-2;Heat;Rural
-40;511;Green corridor infrastructure;CA-2;Drought;Rural
-40;511;Water retention basins;DK-1;Flood;Rural/urban
-40;511;Wetland verge construction;EF-1;Flood;Rural
-40;511;Wetland verge construction;EF-1;Drought;Rural
-40;511;Soil improvement;EF-2;Flood;Rural
-40;511;Water level increase for nature restoration;EF-3;Flood;Rural
-40;511;Water level increase for nature restoration;EF-3;Drought;Rural
-40;511;Riverbank bioenginering;ES-11;Flood;Rural
-40;511;Floodplain restoration;ES-16;Flood;Rural
-40;511;Riparian vegetation restoration;ES-17;Flood;Rural
-40;511;Riparian forest conservation;ES-20;Flood;Rural
-40;511;Riparian forest conservation;ES-20;Heat;Rural
-40;511;Riparian forest conservation;ES-20;Drought;Rural
-40;511;River connectivity restoration;ES-24;Flood;Rural
-40;511;River connectivity restoration;ES-24;Drought;Rural
-40;511;Stream re-meandering;FRI-1;Drought;Rural
-40;511;Adaptive water level management;FRI-2;Drought;Rural
-40;511;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-40;511;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-40;511;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-40;511;Water storage and controlled release;NA-1;Flood;Rural
-40;511;Water storage and controlled release;NA-1;Heat;Rural
-40;511;Water storage and controlled release;NA-1;Drought;Rural
-40;511;Wet meadow restoration;NA-17;Flood;Rural
-40;511;Wet meadow restoration;NA-17;Drought;Rural
-40;511;Hedge planting;NA-4;Flood;Rural
-40;511;River corridor restoration;PO-2;Flood;Urban
-40;511;River corridor restoration;PO-2;Heat;Urban
-40;511;River corridor restoration;PO-2;Drought;Urban
-40;511;Reed swamp creation;WF-10;Flood;Rural
-40;511;Reed swamp creation;WF-10;Drought;Rural
-40;511;Wetland rewetting;WF-19;Heat;Rural
-40;511;Wetland rewetting;WF-19;Drought;Rural
-40;511;Differentiated mowing;WF-20;Drought;Rural
-40;511;Water retention basin;WF-21;Flood;Rural
-40;511;Water retention basin;WF-21;Drought;Rural
-40;511;Buffer strips;WF-3;Flood;Rural
-40;511;Buffer strips;WF-3;Drought;Rural
-40;511;Salinity control ditch system;WF-7;Salinisation;Coastal
-40;511;Adaptive water level management;WF-8;Drought;Coastal
-40;511;Adaptive water level management;WF-8;Salinisation;Coastal
-40;511;Adaptive water level management;WF-8;Flood;Coastal
-41;512;Flood interceptor channel;CA-1;Flood;Coastal
-41;512;Wetland verge construction;EF-1;Flood;Rural
-41;512;Wetland verge construction;EF-1;Drought;Rural
-41;512;Water level increase for nature restoration;EF-3;Flood;Rural
-41;512;Water level increase for nature restoration;EF-3;Drought;Rural
-41;512;Wetland restoration;ES-7;Flood;Rural
-41;512;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-41;512;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-41;512;Nature-based dike reinforcement;FRI-5;Flood;Coastal
-42;521;Coastal wetland restoration;ES-13;Drought;Coastal
-43;522;Flood interceptor channel;CA-1;Flood;Coastal
-43;522;Tidal regime restoration;ES-21;Flood;Coastal
-44;523;Flood interceptor channel;CA-1;Flood;Coastal
-44;523;Nature-based dike reinforcement;FRI-5;Drought;Coastal
-44;523;Nature-based dike reinforcement;FRI-5;Salinisation;Coastal
-44;523;Nature-based dike reinforcement;FRI-5;Flood;Coastal
+clc,lu,nbs_description,nbs_code,hazard,landscape_case
+1,111,Urban green corridor creation,ES-22,Flood,Urban
+1,111,Urban green corridor creation,ES-22,Heat,Urban
+1,111,Slope stabilization planting,NA-7,Heat,Urban
+1,111,Green roofs,PO-1,Flood,Urban
+1,111,Green roofs,PO-1,Heat,Urban
+1,111,Urban park with stormwater retention,PO-3,Flood,Urban
+1,111,Urban park with stormwater retention,PO-3,Heat,Urban
+1,111,Urban park with stormwater retention,PO-3,Drought,Urban
+1,111,Urban park with stormwater retention,PO-4,Flood,Urban
+1,111,Urban park with stormwater retention,PO-4,Heat,Urban
+1,111,Urban park with stormwater retention,PO-4,Drought,Urban
+1,111,Green roof (large-scale),PO-5,Flood,Urban
+1,111,Green roof (large-scale),PO-5,Heat,Urban
+1,111,Urban river creation,WF-9,Heat,Urban
+1,111,Urban river creation,WF-9,Drought,Urban
+2,112,Flood interceptor channel,CA-1,Flood,Coastal
+2,112,Rainwater basin (SuDS),DK-6,Flood,Urban
+4,122,Flood interceptor channel,CA-1,Flood,Coastal
+4,122,Coastal wetland restoration,ES-13,Drought,Coastal
+5,123,Coastal wetland restoration,ES-13,Drought,Coastal
+5,123,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+5,123,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+5,123,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+5,123,Urban river creation,WF-9,Heat,Urban
+5,123,Urban river creation,WF-9,Drought,Urban
+7,131,Coastal wetland restoration,ES-13,Drought,Coastal
+7,131,Wetland restoration,ES-7,Flood,Rural
+8,132,Coastal wetland restoration,ES-13,Drought,Coastal
+9,133,Bio-based material use,FRI-4,Heat,Urban
+10,141,Flood interceptor channel,CA-1,Flood,Coastal
+10,141,Rainwater retention lake,DK-5,Flood,Urban
+10,141,Coastal wetland restoration,ES-13,Drought,Coastal
+10,141,Urban biodiversity habitat creation,ES-23,Heat,Urban
+10,141,Slope stabilization planting,NA-7,Heat,Urban
+10,141,Urban afforestation,PO-6,Flood,Urban
+10,141,Urban afforestation,PO-6,Heat,Urban
+11,142,Rainwater basin (SuDS),DK-6,Flood,Urban
+12,211,Wetland creation,DK-9,Flood,Rural
+12,211,Water storage and controlled release,NA-1,Flood,Rural
+12,211,Water storage and controlled release,NA-1,Heat,Rural
+12,211,Water storage and controlled release,NA-1,Drought,Rural
+12,211,Hedge planting,NA-4,Flood,Rural
+12,211,Aquifer recharge,WF-11,Drought,Rural
+12,211,No-tillage agriculture,WF-16,Heat,Rural
+12,211,No-tillage agriculture,WF-16,Drought,Rural
+12,211,Carbon farming,WF-17,Heat,Rural
+12,211,Carbon farming,WF-17,Drought,Rural
+12,211,Willow wetland system,WF-2,Drought,Rural
+12,211,Differentiated mowing,WF-20,Drought,Rural
+12,211,Buffer strips,WF-3,Flood,Rural
+12,211,Buffer strips,WF-3,Drought,Rural
+12,211,Vegetation-based dams,WF-4,Flood,Rural
+12,211,Vegetation-based dams,WF-4,Drought,Rural
+12,211,Adaptive water level management,WF-8,Drought,Coastal
+12,211,Adaptive water level management,WF-8,Salinisation,Coastal
+12,211,Adaptive water level management,WF-8,Flood,Coastal
+13,212,Flood interceptor channel,CA-1,Flood,Coastal
+13,212,Green corridor infrastructure,CA-2,Flood,Rural
+13,212,Green corridor infrastructure,CA-2,Heat,Rural
+13,212,Green corridor infrastructure,CA-2,Drought,Rural
+13,212,Wetland verge construction,EF-1,Flood,Rural
+13,212,Wetland verge construction,EF-1,Drought,Rural
+13,212,Stream re-meandering,FRI-1,Drought,Rural
+13,212,Wet meadow restoration,NA-17,Flood,Rural
+13,212,Wet meadow restoration,NA-17,Drought,Rural
+13,212,No-tillage agriculture,WF-16,Heat,Rural
+13,212,No-tillage agriculture,WF-16,Drought,Rural
+13,212,Carbon farming,WF-17,Heat,Rural
+13,212,Carbon farming,WF-17,Drought,Rural
+13,212,Differentiated mowing,WF-20,Drought,Rural
+13,212,Buffer strips,WF-3,Flood,Rural
+13,212,Buffer strips,WF-3,Drought,Rural
+13,212,Adaptive water level management,WF-8,Drought,Coastal
+13,212,Adaptive water level management,WF-8,Salinisation,Coastal
+13,212,Adaptive water level management,WF-8,Flood,Coastal
+16,222,Vegetation-based dams,WF-4,Flood,Rural
+16,222,Vegetation-based dams,WF-4,Drought,Rural
+18,231,Green corridor infrastructure,CA-2,Flood,Rural
+18,231,Green corridor infrastructure,CA-2,Heat,Rural
+18,231,Green corridor infrastructure,CA-2,Drought,Rural
+18,231,Soil improvement,EF-2,Flood,Rural
+18,231,Water level increase for nature restoration,EF-3,Flood,Rural
+18,231,Water level increase for nature restoration,EF-3,Drought,Rural
+18,231,Floating wetland,ES-25,Heat,Rural
+18,231,Floating wetland,ES-25,Drought,Rural
+18,231,Stream re-meandering,FRI-1,Drought,Rural
+18,231,Adaptive water level management,FRI-2,Drought,Rural
+18,231,Water storage and controlled release,NA-1,Flood,Rural
+18,231,Water storage and controlled release,NA-1,Heat,Rural
+18,231,Water storage and controlled release,NA-1,Drought,Rural
+18,231,Marsh restoration with grazing,NA-12,Heat,Rural
+18,231,Marsh restoration with grazing,NA-12,Drought,Rural
+18,231,Land use change with grazing management,NA-6,Flood,Rural
+18,231,Reed swamp creation,WF-10,Flood,Rural
+18,231,Reed swamp creation,WF-10,Drought,Rural
+18,231,Aquifer recharge,WF-11,Drought,Rural
+18,231,Carbon farming,WF-17,Heat,Rural
+18,231,Carbon farming,WF-17,Drought,Rural
+18,231,Differentiated mowing,WF-20,Drought,Rural
+18,231,Water retention basin,WF-21,Flood,Rural
+18,231,Water retention basin,WF-21,Drought,Rural
+18,231,Buffer strips,WF-3,Flood,Rural
+18,231,Buffer strips,WF-3,Drought,Rural
+18,231,Salinity control ditch system,WF-7,Salinisation,Coastal
+18,231,Adaptive water level management,WF-8,Drought,Coastal
+18,231,Adaptive water level management,WF-8,Salinisation,Coastal
+18,231,Adaptive water level management,WF-8,Flood,Coastal
+19,241,Flood interceptor channel,CA-1,Flood,Coastal
+19,241,Water storage and controlled release,NA-1,Flood,Rural
+19,241,Water storage and controlled release,NA-1,Heat,Rural
+19,241,Water storage and controlled release,NA-1,Drought,Rural
+19,241,Marsh restoration with grazing,NA-12,Heat,Rural
+19,241,Marsh restoration with grazing,NA-12,Drought,Rural
+19,241,Differentiated mowing,WF-20,Drought,Rural
+19,241,Salinity control ditch system,WF-7,Salinisation,Coastal
+19,241,Adaptive water level management,WF-8,Drought,Coastal
+19,241,Adaptive water level management,WF-8,Salinisation,Coastal
+19,241,Adaptive water level management,WF-8,Flood,Coastal
+20,242,Wetland verge construction,EF-1,Flood,Rural
+20,242,Wetland verge construction,EF-1,Drought,Rural
+20,242,Water level increase for nature restoration,EF-3,Flood,Rural
+20,242,Water level increase for nature restoration,EF-3,Drought,Rural
+20,242,Wet meadow restoration,NA-17,Flood,Rural
+20,242,Wet meadow restoration,NA-17,Drought,Rural
+20,242,Aquifer recharge,WF-11,Drought,Rural
+21,243,Green corridor infrastructure,CA-2,Flood,Rural
+21,243,Green corridor infrastructure,CA-2,Heat,Rural
+21,243,Green corridor infrastructure,CA-2,Drought,Rural
+21,243,Flood retention basin,DK-3,Flood,Urban
+21,243,Rainwater retention lake,DK-5,Flood,Urban
+21,243,Wetland creation,DK-9,Flood,Rural
+21,243,Aquifer recharge,WF-11,Drought,Rural
+22,244,Flood interceptor channel,CA-1,Flood,Coastal
+22,244,Green corridor infrastructure,CA-2,Flood,Rural
+22,244,Green corridor infrastructure,CA-2,Heat,Rural
+22,244,Green corridor infrastructure,CA-2,Drought,Rural
+23,311,Sustainable forest management,ES-10,Drought,Rural
+23,311,Riparian vegetation restoration,ES-17,Flood,Rural
+23,311,Riparian forest conservation,ES-20,Flood,Rural
+23,311,Riparian forest conservation,ES-20,Heat,Rural
+23,311,Riparian forest conservation,ES-20,Drought,Rural
+24,312,Flood interceptor channel,CA-1,Flood,Coastal
+24,312,Riparian vegetation restoration,ES-17,Flood,Rural
+25,313,Green corridor infrastructure,CA-2,Flood,Rural
+25,313,Green corridor infrastructure,CA-2,Heat,Rural
+25,313,Green corridor infrastructure,CA-2,Drought,Rural
+25,313,Riparian vegetation restoration,ES-17,Flood,Rural
+25,313,Forest conservation,ES-18,Flood,Rural
+25,313,Forest conservation,ES-18,Drought,Rural
+26,321,Water retention system for stormwater,DK-2,Flood,Urban
+26,321,Soil improvement,EF-2,Flood,Rural
+26,321,Water level increase for nature restoration,EF-3,Flood,Rural
+26,321,Water level increase for nature restoration,EF-3,Drought,Rural
+26,321,Adaptive water level management,FRI-2,Drought,Rural
+26,321,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+26,321,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+26,321,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+26,321,Marsh restoration with grazing,NA-12,Heat,Rural
+26,321,Marsh restoration with grazing,NA-12,Drought,Rural
+26,321,Reed swamp creation,WF-10,Flood,Rural
+26,321,Reed swamp creation,WF-10,Drought,Rural
+26,321,Water retention basin,WF-21,Flood,Rural
+26,321,Water retention basin,WF-21,Drought,Rural
+26,321,Dune and wetland restoration,WF-5,Heat,Coastal
+26,321,Adaptive water level management,WF-8,Drought,Coastal
+26,321,Adaptive water level management,WF-8,Salinisation,Coastal
+26,321,Adaptive water level management,WF-8,Flood,Coastal
+27,322,Water level increase for nature restoration,EF-3,Flood,Rural
+27,322,Water level increase for nature restoration,EF-3,Drought,Rural
+27,322,Hedge planting,NA-4,Flood,Rural
+30,331,Flood interceptor channel,CA-1,Flood,Coastal
+30,331,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+30,331,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+30,331,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+30,331,Dune and wetland restoration,WF-5,Heat,Coastal
+31,332,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+31,332,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+31,332,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+31,332,Slope stabilization planting,NA-7,Heat,Urban
+32,333,Flood interceptor channel,CA-1,Flood,Coastal
+32,333,Forest restoration,ES-6,Drought,Rural
+32,333,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+32,333,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+32,333,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+32,333,Stream restoration and wetland creation,NA-11,Flood,Rural
+32,333,Slope stabilization planting,NA-7,Heat,Urban
+33,334,Forest restoration,ES-6,Drought,Rural
+35,411,Flood interceptor channel,CA-1,Flood,Coastal
+35,411,Water retention basins,DK-1,Flood,Rural/urban
+35,411,Soil improvement,EF-2,Flood,Rural
+35,411,Water level increase for nature restoration,EF-3,Flood,Rural
+35,411,Water level increase for nature restoration,EF-3,Drought,Rural
+35,411,Coastal wetland restoration,ES-13,Drought,Coastal
+35,411,Wetland restoration,ES-7,Flood,Rural
+35,411,Water storage and controlled release,NA-1,Flood,Rural
+35,411,Water storage and controlled release,NA-1,Heat,Rural
+35,411,Water storage and controlled release,NA-1,Drought,Rural
+35,411,Marsh restoration with grazing,NA-12,Heat,Rural
+35,411,Marsh restoration with grazing,NA-12,Drought,Rural
+35,411,Land use change with grazing management,NA-6,Flood,Rural
+35,411,Reed swamp creation,WF-10,Flood,Rural
+35,411,Reed swamp creation,WF-10,Drought,Rural
+35,411,Aquifer recharge,WF-11,Drought,Rural
+35,411,Buffer strips,WF-3,Flood,Rural
+35,411,Buffer strips,WF-3,Drought,Rural
+36,412,Wetland creation,DK-9,Flood,Rural
+36,412,Stream re-meandering,FRI-1,Drought,Rural
+36,412,Adaptive water level management,FRI-2,Drought,Rural
+37,421,Coastal wetland restoration,ES-13,Drought,Coastal
+37,421,Tidal regime restoration,ES-21,Flood,Coastal
+37,421,Coastal wetland restoration,ES-8,Flood,Coastal
+37,421,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+37,421,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+37,421,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+37,421,Dune and wetland restoration,WF-5,Heat,Coastal
+37,421,Adaptive water level management,WF-8,Drought,Coastal
+37,421,Adaptive water level management,WF-8,Salinisation,Coastal
+37,421,Adaptive water level management,WF-8,Flood,Coastal
+38,422,Salinity control ditch system,WF-7,Salinisation,Coastal
+39,423,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+39,423,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+39,423,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+40,511,Flood interceptor channel,CA-1,Flood,Coastal
+40,511,Green corridor infrastructure,CA-2,Flood,Rural
+40,511,Green corridor infrastructure,CA-2,Heat,Rural
+40,511,Green corridor infrastructure,CA-2,Drought,Rural
+40,511,Water retention basins,DK-1,Flood,Rural/urban
+40,511,Wetland verge construction,EF-1,Flood,Rural
+40,511,Wetland verge construction,EF-1,Drought,Rural
+40,511,Soil improvement,EF-2,Flood,Rural
+40,511,Water level increase for nature restoration,EF-3,Flood,Rural
+40,511,Water level increase for nature restoration,EF-3,Drought,Rural
+40,511,Riverbank bioenginering,ES-11,Flood,Rural
+40,511,Floodplain restoration,ES-16,Flood,Rural
+40,511,Riparian vegetation restoration,ES-17,Flood,Rural
+40,511,Riparian forest conservation,ES-20,Flood,Rural
+40,511,Riparian forest conservation,ES-20,Heat,Rural
+40,511,Riparian forest conservation,ES-20,Drought,Rural
+40,511,River connectivity restoration,ES-24,Flood,Rural
+40,511,River connectivity restoration,ES-24,Drought,Rural
+40,511,Stream re-meandering,FRI-1,Drought,Rural
+40,511,Adaptive water level management,FRI-2,Drought,Rural
+40,511,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+40,511,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+40,511,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+40,511,Water storage and controlled release,NA-1,Flood,Rural
+40,511,Water storage and controlled release,NA-1,Heat,Rural
+40,511,Water storage and controlled release,NA-1,Drought,Rural
+40,511,Wet meadow restoration,NA-17,Flood,Rural
+40,511,Wet meadow restoration,NA-17,Drought,Rural
+40,511,Hedge planting,NA-4,Flood,Rural
+40,511,River corridor restoration,PO-2,Flood,Urban
+40,511,River corridor restoration,PO-2,Heat,Urban
+40,511,River corridor restoration,PO-2,Drought,Urban
+40,511,Reed swamp creation,WF-10,Flood,Rural
+40,511,Reed swamp creation,WF-10,Drought,Rural
+40,511,Wetland rewetting,WF-19,Heat,Rural
+40,511,Wetland rewetting,WF-19,Drought,Rural
+40,511,Differentiated mowing,WF-20,Drought,Rural
+40,511,Water retention basin,WF-21,Flood,Rural
+40,511,Water retention basin,WF-21,Drought,Rural
+40,511,Buffer strips,WF-3,Flood,Rural
+40,511,Buffer strips,WF-3,Drought,Rural
+40,511,Salinity control ditch system,WF-7,Salinisation,Coastal
+40,511,Adaptive water level management,WF-8,Drought,Coastal
+40,511,Adaptive water level management,WF-8,Salinisation,Coastal
+40,511,Adaptive water level management,WF-8,Flood,Coastal
+41,512,Flood interceptor channel,CA-1,Flood,Coastal
+41,512,Wetland verge construction,EF-1,Flood,Rural
+41,512,Wetland verge construction,EF-1,Drought,Rural
+41,512,Water level increase for nature restoration,EF-3,Flood,Rural
+41,512,Water level increase for nature restoration,EF-3,Drought,Rural
+41,512,Wetland restoration,ES-7,Flood,Rural
+41,512,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+41,512,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+41,512,Nature-based dike reinforcement,FRI-5,Flood,Coastal
+42,521,Coastal wetland restoration,ES-13,Drought,Coastal
+43,522,Flood interceptor channel,CA-1,Flood,Coastal
+43,522,Tidal regime restoration,ES-21,Flood,Coastal
+44,523,Flood interceptor channel,CA-1,Flood,Coastal
+44,523,Nature-based dike reinforcement,FRI-5,Drought,Coastal
+44,523,Nature-based dike reinforcement,FRI-5,Salinisation,Coastal
+44,523,Nature-based dike reinforcement,FRI-5,Flood,Coastal
