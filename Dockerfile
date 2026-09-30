@@ -1,9 +1,11 @@
 FROM geopython/pygeoapi:latest
 
-COPY pyproject.toml /pygeoapi/
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /usr/local/bin/uv
+
+COPY pyproject.toml uv.lock /pygeoapi/
 COPY processes/ /pygeoapi/processes/
 
-# Install project with dev extras (includes debugpy for attach debugging)
-RUN cd /pygeoapi && /venv/bin/pip install --no-cache-dir ".[dev]"
+# Keep the base image's system-site-packages venv and its pygeoapi installation.
+RUN UV_PROJECT_ENVIRONMENT=/venv uv sync --locked --inexact --extra dev --no-cache
 
 COPY app.yml /pygeoapi/app.yml
