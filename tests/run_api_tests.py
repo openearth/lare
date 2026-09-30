@@ -2,7 +2,7 @@
 """Run pre-defined pygeoapi process requests from a JSON file.
 
 Usage:
-    python scripts/run_api_tests.py --cases tests/api_cases.example.json
+    python tests/run_api_tests.py --cases tests/api_cases.example.json
 """
 
 from __future__ import annotations
