@@ -162,7 +162,7 @@ def _buffer_to_coastal_zone(
     gdf: gpd.GeoDataFrame,
     geoserver_url: str,
     coastline_layer: str,
-    buffer_m: float = 1000,
+    buffer_m: float = 10000,
 ) -> gpd.GeoDataFrame:
     """Return coastal zone features intersecting a buffered region."""
     gdf_buffered = ensure_metric(gdf.copy(), 3857)
