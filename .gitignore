@@ -4,6 +4,7 @@ static/*
 logs/*
 configuration*.txt
 app.yml
+*.bak
 .env
 .env.*
 !.env.example

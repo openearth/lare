@@ -2,7 +2,8 @@
 """Run pre-defined pygeoapi process requests from a JSON file.
 
 Usage:
-    python scripts/run_api_tests.py --cases tests/api_cases.example.json
+    python tests/run_api_tests.py --cases tests/api_cases.example.json
+    python .\tests\run_api_tests.py --cases .\tests\api_cases.uc8.json --base-url http://localhost:5000 --timeout 180
 """
 
 from __future__ import annotations
@@ -130,7 +131,7 @@ def _execute_case(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run saved JSON API test cases against LARE pygeoapi.")
     parser.add_argument("--base-url", default="http://localhost:5000", help="Base URL of pygeoapi service")
-    parser.add_argument("--cases", default="tests/api_cases.example.json", help="Path to JSON cases file")
+    parser.add_argument("--cases", default="api_cases.bm1.json", help="Path to JSON cases file")
     parser.add_argument("--timeout", type=int, default=120, help="HTTP timeout in seconds")
     parser.add_argument(
         "--mode",
