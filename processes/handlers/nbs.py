@@ -88,12 +88,28 @@ def _repo_data_path(*parts: str) -> Path:
     return Path(__file__).resolve().parents[2].joinpath(*parts)
 
 
-def _build_nbs_lookup(archetype: str, hazard: str) -> dict[int, list[str]]:
+def _landscape_case_matches(landscape_case: str, archetype_case: str) -> bool:
+    """Return True if ``archetype_case`` is one of the ``/``-separated cases.
+
+    Some rows apply to more than one archetype, e.g. ``Rural/urban`` should
+    match both the ``rural`` and ``urban`` process archetypes.
+    """
+    parts = {p.strip().lower() for p in landscape_case.split('/') if p.strip()}
+    return archetype_case in parts
+
+
+def _build_nbs_lookup(
+    archetype: str, hazard: str
+) -> tuple[dict[int, list[str]], dict[str, str]]:
     """Map remapped CLC code → sorted unique NBS codes for archetype + hazard.
 
     Uses the harmonized NBS table from ``nbs.table``, filtered by ``hazard``
     labels from ``nbs.labels`` and ``landscape_case`` matching the process
-    archetype.
+    archetype (``landscape_case`` values combining archetypes with ``/``,
+    e.g. ``Rural/urban``, match either archetype).
+
+    Returns the CLC → NBS-code lookup plus a global ``nbs_code`` →
+    ``nbs_description`` mapping (when the column is present in the table).
     """
     cfg = get_config()
     nbs_rel = cfg.nbs_table
@@ -101,19 +117,28 @@ def _build_nbs_lookup(archetype: str, hazard: str) -> dict[int, list[str]]:
     if not nbs_path.is_file():
         raise FileNotFoundError(f'NBS mapping not found: {nbs_path}')
 
-    nbs = pd.read_csv(nbs_path)
+    # Auto-detect delimiter: the harmonized table is written with commas, but
+    # may be resaved as semicolon-separated by spreadsheet tools.
+    nbs = pd.read_csv(nbs_path, sep=None, engine='python')
     required = {'clc', 'hazard', 'nbs_code', 'landscape_case'}
     missing = required - set(nbs.columns)
     if missing:
         raise ValueError(f'NBS table {nbs_path} missing columns: {sorted(missing)}')
 
+    has_desc = 'nbs_description' in nbs.columns
+
     nbs['hazard'] = nbs['hazard'].astype(str).str.strip()
     nbs['nbs_code'] = nbs['nbs_code'].astype(str).str.strip()
     nbs['landscape_case'] = nbs['landscape_case'].astype(str).str.strip()
     nbs.loc[nbs['landscape_case'].str.lower().isin({'nan', ''}), 'landscape_case'] = pd.NA
+    if has_desc:
+        nbs['nbs_description'] = nbs['nbs_description'].astype(str).str.strip()
 
     case = archetype.strip().lower()
-    nbs_case = nbs[nbs['landscape_case'].str.lower() == case].copy()
+    case_mask = nbs['landscape_case'].apply(
+        lambda v: _landscape_case_matches(v, case) if isinstance(v, str) else False
+    )
+    nbs_case = nbs[case_mask].copy()
     if nbs_case.empty:
         raise ValueError(
             f'No NBS rows for landscape_case={archetype!r} in {nbs_path}'
@@ -128,13 +153,22 @@ def _build_nbs_lookup(archetype: str, hazard: str) -> dict[int, list[str]]:
             sorted(hazard_labels),
             case,
         )
-        return {}
+        return {}, {}
 
     lookup: dict[int, list[str]] = {}
     for clc_code, group in nbs_haz.groupby('clc'):
         codes = sorted({str(c) for c in group['nbs_code'].dropna() if str(c) and str(c) != 'nan'})
         if codes:
             lookup[int(clc_code)] = codes
+
+    desc_by_code: dict[str, str] = {}
+    if has_desc:
+        for code, desc in zip(nbs_haz['nbs_code'], nbs_haz['nbs_description']):
+            code = str(code).strip()
+            desc = str(desc).strip()
+            if code and code != 'nan' and desc and desc != 'nan' and code not in desc_by_code:
+                desc_by_code[code] = desc
+
     logger.info(
         'lare-nbs: NBS lookup built for archetype=%s hazard=%s (%d CLC codes with NBS) from %s',
         case,
@@ -142,7 +176,7 @@ def _build_nbs_lookup(archetype: str, hazard: str) -> dict[int, list[str]]:
         len(lookup),
         nbs_path.name,
     )
-    return lookup
+    return lookup, desc_by_code
 
 
 def _annotate_nbs_columns(
@@ -154,13 +188,14 @@ def _annotate_nbs_columns(
     column_prefix: str = 'clc_',
 ) -> gpd.GeoDataFrame:
     """Add top-rank areas and NBS lists plus full-depth NBS-majority fields."""
-    lookup = _build_nbs_lookup(archetype, hazard)
+    lookup, desc_by_code = _build_nbs_lookup(archetype, hazard)
     n = len(hexagons)
 
-    drop_cols = ['clc_nbs_majority', 'nbs_list_majority', 'clc_nbs_majority_area', 'clc_majority_area']
+    drop_cols = ['clc_nbs_majority', 'nbs_list_majority', 'nbs_desc_list_majority', 'clc_nbs_majority_area', 'clc_majority_area']
     drop_cols.extend(
         c for c in hexagons.columns
-        if c.startswith('clc_rank_area_') or c.startswith('nbs_flag_') or c.startswith('nbs_list_')
+        if c.startswith('clc_rank_area_') or c.startswith('nbs_flag_')
+        or c.startswith('nbs_list_') or c.startswith('nbs_desc_list_')
     )
     drop_cols = list(dict.fromkeys(drop_cols))
     existing = [c for c in drop_cols if c in hexagons.columns]
@@ -179,10 +214,16 @@ def _annotate_nbs_columns(
     count_cols.sort(key=lambda t: t[0])
 
     lists = {i: np.array([''] * n, dtype=object) for i in range(1, top_n + 1)}
+    desc_lists = {i: np.array([''] * n, dtype=object) for i in range(1, top_n + 1)}
     rank_areas = {i: np.full(n, np.nan) for i in range(1, top_n + 1)}
     nbs_majority = np.full(n, np.nan)
     nbs_list_majority = np.array([''] * n, dtype=object)
+    nbs_desc_list_majority = np.array([''] * n, dtype=object)
     nbs_majority_area = np.full(n, np.nan)
+
+    def _descriptions(codes: list[str]) -> str:
+        descs = [desc_by_code[c] for c in codes if c in desc_by_code]
+        return _NBS_SEP.join(dict.fromkeys(descs))
 
     for row_i in range(n):
         row = hexagons.iloc[row_i]
@@ -204,6 +245,7 @@ def _annotate_nbs_columns(
             rank_areas[rank][row_i] = float(count_val) * float(pixel_area_m2)
             nbs_codes = lookup.get(clc_code, [])
             lists[rank][row_i] = _NBS_SEP.join(nbs_codes) if nbs_codes else ''
+            desc_lists[rank][row_i] = _descriptions(nbs_codes) if nbs_codes else ''
 
         # Full-depth majority: all CLC classes with count > 0, highest count first.
         present: list[tuple[int, int]] = []  # (count, clc_code)
@@ -221,6 +263,7 @@ def _annotate_nbs_columns(
             if nbs_codes:
                 nbs_majority[row_i] = float(clc_code)
                 nbs_list_majority[row_i] = _NBS_SEP.join(nbs_codes)
+                nbs_desc_list_majority[row_i] = _descriptions(nbs_codes)
                 nbs_majority_area[row_i] = float(count_val) * float(pixel_area_m2)
                 break
 
@@ -229,8 +272,10 @@ def _annotate_nbs_columns(
 
     for rank in range(1, top_n + 1):
         hexagons[f'nbs_list_{rank}'] = lists[rank]
+        hexagons[f'nbs_desc_list_{rank}'] = desc_lists[rank]
     hexagons['clc_nbs_majority'] = nbs_majority
     hexagons['nbs_list_majority'] = nbs_list_majority
+    hexagons['nbs_desc_list_majority'] = nbs_desc_list_majority
     hexagons['clc_nbs_majority_area'] = nbs_majority_area
     return hexagons
 

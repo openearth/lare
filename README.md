@@ -20,15 +20,32 @@ docker compose up --build
 ### Development (default Compose command)
 
 - **`processes/`**, **`app.yml`**, and **`./tmp`** are bind-mounted into the container.
-- **`PYTHONPATH=/pygeoapi`** makes Python load the live `processes/` tree (over the copy installed by `pip install` in the image).
+- **`PYTHONPATH=/pygeoapi`** makes Python load the live `processes/` tree (over the copy installed in the image).
 
 - Session directories from `lare-start` appear under **`./tmp`** on the host when `sdi.tmp.tmpdir` in `app.yml` is `/pygeoapi/tmp` (mapped to `./tmp`).
-- After changing **`pyproject.toml`** dependencies, rebuild: `docker compose build --no-cache`.
+
+### Updating Python dependencies
+
+`pyproject.toml` lists the allowed dependencies; `uv.lock` records the resolved versions. Docker installs from the lock file into the base image's existing `/venv` without removing its other packages. No local Python or uv installation is needed.
+
+After editing `pyproject.toml`, update `uv.lock` using the already-built project image (on a fresh checkout, run `docker compose build` first):
+
+```powershell
+# PowerShell, from the repository root
+docker compose run --rm --no-deps -v "${PWD}:/workspace" -w /workspace --entrypoint uv pygeoapi lock --python /venv/bin/python
+```
+
+```bash
+# Linux/macOS shell, from the repository root
+docker compose run --rm --no-deps -v "$PWD:/workspace" -w /workspace --entrypoint uv pygeoapi lock --python /venv/bin/python
+```
+
+Review and commit both `pyproject.toml` and `uv.lock`, then rebuild with `docker compose build --no-cache`. The build uses `uv sync --locked` and fails if the manifest and lock file disagree, rather than choosing new dependency versions.
 
 
 ### Config: temp directory override
 
-Set environment variable **`LARE_TMPDIR`** to override `sdi.tmp.tmpdir` from `app.yml` (e.g. native Windows Python without Docker: `LARE_TMPDIR=C:\develop\lare\tmp`).
+Set environment variable **`LARE_TMPDIR`** in the container to override `sdi.tmp.tmpdir` from `app.yml`. Use a container path that is mounted for session artifacts.
 
 For Docker Compose, copy `.env.example` to `.env` and set **`LARE_TMPDIR_HOST`** to the absolute host path that GeoServer can read. Examples:
 
@@ -89,31 +106,23 @@ Async responses are **202** with a **Location** (or **Link**) to the job; poll t
 
 ### Run saved API test payloads
 
-Instead of manually executing each endpoint in Swagger UI, you can run a local
-test runner that posts your saved JSON payloads in sequence.
+Instead of manually executing each endpoint in Swagger UI, run the saved API
+test cases against the running Compose service from a container.
 
-1. Create your local cases file (kept out of git):
+1. Copy the example cases file to `tests/api_cases.local.json` (kept out of git) and edit it with your payloads. Use `{{sessionid}}` in later steps; it is filled from `lare-start`.
+2. With `docker compose up -d` running, execute the runner from the repository root:
 
-```bash
-cp tests/api_cases.example.json tests/api_cases.local.json
+```powershell
+# PowerShell
+docker compose run --rm --no-deps -v "${PWD}\tests:/pygeoapi/lare-tests:ro" --entrypoint /venv/bin/python pygeoapi /pygeoapi/lare-tests/run_api_tests.py --cases /pygeoapi/lare-tests/api_cases.local.json --base-url http://pygeoapi:80
 ```
 
-2. Edit `tests/api_cases.local.json` with your payloads.
-   - Use `{{sessionid}}` in later steps; it is auto-filled from `lare-start`.
-3. Run:
-
 ```bash
-python tests/run_api_tests.py --cases tests/api_cases.local.json
-```
-
-From the repository root, equivalent command:
-
-```bash
-python lare/tests/run_api_tests.py --mode sync --cases lare/tests/api_cases.local.json
+# Linux/macOS shell
+docker compose run --rm --no-deps -v "$PWD/tests:/pygeoapi/lare-tests:ro" --entrypoint /venv/bin/python pygeoapi /pygeoapi/lare-tests/run_api_tests.py --cases /pygeoapi/lare-tests/api_cases.local.json --base-url http://pygeoapi:80
 ```
 
 Optional flags:
-- `--base-url http://localhost:5000`
 - `--timeout 180`
 
 The runner exits with code `1` if any case fails (useful for CI later).

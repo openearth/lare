@@ -3,7 +3,10 @@
 
 Usage:
     python tests/run_api_tests.py --cases tests/api_cases.example.json
+<<<<<<< HEAD
     python .\tests\run_api_tests.py --cases .\tests\api_cases.uc8.json --base-url http://localhost:5000 --timeout 180
+=======
+>>>>>>> 9cc2ad7420600703a321c9e98db886c671d9d62b
 """
 
 from __future__ import annotations

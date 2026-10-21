@@ -18,12 +18,13 @@ PROCESS_METADATA = {
     'description': (
         'Computes a per-hexagon Corine Land Cover (CLC) zonal histogram for '
         'urban, rural, or coastal Units of Measurement, writes the top 5 CLC '
-        'ranks with their NBS lists for the given hazard and archetype, and '
-        'selects clc_nbs_majority / nbs_list_majority by searching all CLC '
-        'classes with count > 0 (not limited to the displayed ranks). Writes '
-        'clc_* counts, clc_majority, clc_rank_1..5, clc_rank_area_1..5, '
-        'nbs_list_1..5, '
-        'clc_nbs_majority, nbs_list_majority, and clc_nbs_majority_area (m2).'
+        'ranks with their NBS code and description lists for the given hazard '
+        'and archetype, and selects clc_nbs_majority / nbs_list_majority by '
+        'searching all CLC classes with count > 0 (not limited to the '
+        'displayed ranks). Writes clc_* counts, clc_majority, clc_rank_1..5, '
+        'clc_rank_area_1..5, nbs_list_1..5, nbs_desc_list_1..5, '
+        'clc_nbs_majority, nbs_list_majority, nbs_desc_list_majority, and '
+        'clc_nbs_majority_area (m2).'
     ),
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'inputs': {
@@ -43,7 +44,7 @@ PROCESS_METADATA = {
             'title': 'Hazard',
             'description': (
                 'Hazard key from app config (e.g. heat, drought, pluvial_RP200). '
-                'Used to look up NBS options in clc_nbs_hazard.csv.'
+                'Used to look up NBS options in nbs_corine_hazard_updated.csv.'
             ),
             'schema': {'type': 'string'},
             'minOccurs': 1,

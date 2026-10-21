@@ -27,7 +27,7 @@ This is the network location behind the `Z:` drive used in the dataset paths bel
 | `app.yml` → `hazard_layers.salinity`; tests → `hazard: "salinity"` | `salinity` | `hazard` | Local GeoServer — `Z:\geoserver\desirmed\salinity\soil_salinity_2016_europe.tif` | Yes — UC4 |
 | `app.yml` → `hazard_layers.heat`; tests → `hazard: "heat"` | `utci_days_above_46_daily_max` | `hazard` | Local GeoServer — `Z:\geoserver\desirmed\heat\utci_days_above_46_daily_max.tif` | Yes — UC5, UC6 |
 | `app.yml` → `hazards.clc_scores.archetype` | `landscapearchetype.csv` | — (`data/`) | GitHub — `data/` | Yes — all cases |
-| `app.yml` → `nbs.table`; `lare-nbs` | `clc_nbs_hazard_updated.csv` | — (`data/`) | GitHub — `data/` | Yes — UC6, UC7, UC8 |
+| `app.yml` → `nbs.table`; `lare-nbs` | `nbs_corine_hazard_updated.csv` | — (`data/`) | GitHub — `data/` | Yes — UC6, UC7, UC8 |
 | `app.yml` → `layers.datasets` | `hybas_eu_lev12_v1c` | `hydro` | Local GeoServer | **Not used yet** |
 | `app.yml` → `layers.kcs` | `pop2020` | `socio_economic` | Local GeoServer | **Not used yet** |
 | `app.yml` → `layers.kcs` | `pop2030` | `socio_economic` | Local GeoServer | **Not used yet** |

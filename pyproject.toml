@@ -9,7 +9,7 @@ dependencies = [
     "pydantic>=2",
     "pyyaml",
     "geopandas",
-    "numpy",
+    "numpy<2",
     "pandas",
     "shapely",
     "fiona",
