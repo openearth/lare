@@ -202,7 +202,7 @@ def main_handler(session_id: str, uom_size: int, layer_name: str, id: str, arche
     #TODO if archetype is coastal, also save a version in 4326 for use in the coastal processor
     if archetype == 'coastal':
         # clip to coastal zone before saving, to reduce file size and speed up the coastal processor
-        gdf = _buffer_to_coastal_zone(gdf, cfg.ows_base, cfg.layer_coastline, buffer_m=1000)
+        gdf = _buffer_to_coastal_zone(gdf, cfg.ows_base, cfg.layer_coastline, buffer_m=10000)
         # Return to the same working CRS used before coastal clipping so
         # downstream bbox generation stays consistent without hardcoding EPSG.
         if working_crs is not None:
