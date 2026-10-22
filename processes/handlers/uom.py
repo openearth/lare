@@ -175,6 +175,8 @@ def _buffer_to_coastal_zone(
             'No coastal zone features intersect the given region. '
             'This process is intended for coastal areas.'
         )
+    else:
+        logger.info('Applied coastal zone buffer: %d', buffer_m)
     return coastal_zone
 
 
